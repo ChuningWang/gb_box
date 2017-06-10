@@ -1,0 +1,119 @@
+# Read off-coast CTD casts and calculate Sp
+
+import netCDF4 as nc
+import numpy as np
+from scipy.interpolate import interp1d
+
+def box_sp(mt, lat_sp=57.875, lon_sp=-136.625, d_lim = [20, 100]):
+
+    # lat_sp = 57.875
+    # lon_sp = -136.625
+    # d_lim = [20, 100]
+
+    from datetime import datetime
+    import statsmodels.api as sm
+
+    fh = nc.Dataset('./data/s_wod.nc', 'r')
+    mm = fh.variables['mm'][:]
+    lat = fh.variables['lat'][:]
+    lon = fh.variables['lon'][:]
+    d = fh.variables['d'][:]
+    s = fh.variables['s'][:]
+
+    msk1 = lat==lat_sp
+    msk2 = lon==lon_sp
+    msk3 = (d>=d_lim[0]) & (d<=d_lim[1])
+    sp = s[:, msk3, msk1, msk2]
+    sp = np.mean(sp, axis=1)
+
+    yd = np.zeros(12)
+    for i in range(yd.size):
+        yd[i] = datetime(1, i+1, 15).timetuple().tm_yday
+
+    yd = np.concatenate((yd-366, yd, yd+366))
+    sp = np.concatenate((sp, sp, sp))
+
+    yd_i = np.arange(-300, 300*2)
+    sp_i = interp1d(yd,sp)(yd_i)
+
+    lowess = sm.nonparametric.lowess(sp_i, yd_i, frac=0.2)
+    sp = interp1d(lowess[:, 0], lowess[:, 1])(mt)
+
+    return sp
+
+# import matplotlib.pyplot as plt
+# plt.plot(yd, sp, '--.')
+# plt.show()
+
+# import glob
+# import netCDF4 as nc
+# import numpy as np
+# from scipy.interpolate import interp1d
+# from matplotlib import path
+# 
+# dmin = 15
+# dmax = 50
+# 
+# print 'Getting file names...'
+# fheader = glob.glob('./data/ctd_offcoast/ocldb*.nc')[0]
+# flist = glob.glob('./data/ctd_offcoast/wod*.nc')
+# 
+# print 'Getting coordinates...'
+# fh = nc.Dataset(fheader)
+# cast = fh.variables['cast'][:]
+# cast_sort = np.argsort(cast)
+# lat = fh.variables['lat'][cast_sort] 
+# lon = fh.variables['lon'][cast_sort] 
+# t = fh.variables['time'][cast_sort] 
+# cast = cast[cast_sort]
+# 
+# # Initiate
+# print 'Initiating...'
+# nn = t.size
+# d = np.arange(dmin, dmax+1)
+# s = np.zeros((dmax-dmin+1, nn))*np.nan
+# t = np.zeros((dmax-dmin+1, nn))*np.nan
+# 
+# kk = -1
+# for ff in flist:
+#     kk = kk+1
+#     print 'Loading '+ff+'...'
+#     fh = nc.Dataset(ff)
+#     dd = fh.variables['z'][:]
+#     dd_flag = fh.variables['z_WODflag'][:]
+# 
+#     if (dd.max()<50) | (dd.min()>15):
+#         continue
+# 
+#     tt = fh.variables['Temperature'][:]
+#     tt_flag = fh.variables['Temperature_WODflag'][:]
+#     
+#     try:
+#         ss = fh.variables['Salinity'][:]
+#         ss_flag = fh.variables['Salinity_WODflag'][:]
+#     except:
+#         continue
+# 
+#     msk = (dd_flag == 0) & (ss_flag == 0) & (tt_flag == 0) & (~np.isnan(dd_flag)) & (~np.isnan(ss_flag)) & (~np.isnan(ss_flag))
+# 
+#     if (dd[msk].max()<50) | (dd[msk].min()>15):
+#         continue
+# 
+#     if np.sum(msk) != 0:
+#         s[:, kk] = interp1d(dd[msk], ss[msk])(d)
+#         t[:, kk] = interp1d(dd[msk], tt[msk])(d)
+# 
+# fh.close()
+# 
+# # Find casts within a geographic box
+# box = np.array([[-136., 57.],
+#                 [-136., 57.6],
+#                 [-138., 59.],
+#                 [-138., 57.]])
+# 
+# p_box = path.Path(box)
+# p_inbox = p_box.contains_points(np.array([lon, lat]).T)
+
+
+
+

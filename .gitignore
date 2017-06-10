@@ -1,0 +1,12 @@
+*.nc
+*.pyc
+*.pyo
+*.out
+*.tiff
+*.eps
+*.o
+log.txt
+
+refs/
+build/
+dist/

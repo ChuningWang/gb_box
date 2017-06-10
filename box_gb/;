@@ -1,0 +1,402 @@
+# Inverse box model
+
+def box_inverse(cal_clim=-1, svpth=-1):
+
+    import numpy as np
+    from box_gb.box_params import Aui, Aid, Vu, Vi, Vd, deltaSui, deltaSid, damp_mixing
+    from box_gb import box_sp
+    from scipy.optimize import lsq_linear  # Solve linear system with constrains
+
+    # cal_clim = 0
+
+    # Calculate/Read salinities and freshwater discharge in each box
+    # The function box_avgbox_clim works fine on pool-97, but does not work on my laptop.
+    # Thus use cal_clim = - 1 unless you want to change the averaging algorithm.
+    if cal_clim == 1:
+        from box_gb.box_ctd import box_avgbox_clim
+        mt, s, F = box_avgbox_clim(svpth='./data/')
+    else:
+        import netCDF4 as nc
+        fh = nc.Dataset('./data/s_box.nc', mode='r')
+        mt = fh.variables['t'][:]
+        s = fh.variables['s_box'][:]
+        F = fh.variables['f_box'][:]
+
+    # ----------------------------------------------------------------------------------------------
+    dmt = np.diff(mt)*24*60*60  # [s]
+    dsdt = np.diff(s, axis=2)/dmt  # [PSU s^-1]
+
+    mt = 0.5*(mt[:-1]+mt[1:])
+    s = 0.5*(s[:, :, :-1]+s[:, :, 1:])  # [PSU]
+    F = 0.5*(F[:, :-1]+F[:, 1:])  # [m^3s^-1]
+
+    # Pacific Salinity (sp)
+    # sp = box_sp.box_sp(mt, lat_sp=56.875, lon_sp=-137.625)
+    sp = box_sp.box_sp(mt)  # [PSU]
+
+    X = np.zeros((12, mt.size))*np.nan
+
+    for i in range(mt.size):
+        # Solve linear system aX=b with constraint X>0
+        a = np.zeros((11, 11))
+
+        # --------------------------------------------------------------------------------
+        # This version is created on 2016/08/23 -- see my notes
+        # 2016/08/24
+        # Change this from a 11-box model into a 12-box model -- see my notes
+                
+        a[0, 0]   = s[1, 0, i]-s[0, 0, i]
+        a[0, 4]   = s[1, 0, i]-s[0, 0, i]
+        a[1, 0]   = s[2, 0, i]-s[1, 0, i]
+        a[1, 4]   = s[0, 0, i]-s[1, 0, i]
+        a[1, 5]   = s[2, 0, i]-s[1, 0, i]
+        a[2, 0]   = s[2, 2, i]-s[2, 0, i]
+        a[2, 5]   = s[1, 0, i]-s[2, 0, i]
+        a[3, 1]   = s[1, 1, i]-s[0, 1, i]
+        a[3, 6]   = s[1, 1, i]-s[0, 1, i]
+        a[4, 1]   = s[2, 1, i]-s[1, 1, i]
+        a[4, 6]   = s[0, 1, i]-s[1, 1, i]
+        a[4, 7]   = s[2, 1, i]-s[1, 1, i]
+        a[5, 1]   = s[2, 2, i]-s[2, 1, i]
+        a[5, 7]   = s[1, 1, i]-s[2, 1, i]
+        a[6, 0]   = s[0, 0, i]-s[1, 2, i]
+        a[6, 1]   = s[0, 1, i]-s[1, 2, i]
+        a[6, 2]   = s[1, 2, i]-s[0, 2, i]
+        a[6, 8]   = s[1, 2, i]-s[0, 2, i]
+        a[7, 0]   = s[1, 2, i]-s[2, 2, i]
+        a[7, 1]   = s[1, 2, i]-s[2, 2, i]
+        a[7, 2]   = s[2, 2, i]-s[1, 2, i]
+        a[7, 8]   = s[0, 2, i]-s[1, 2, i]
+        a[7, 9]   = s[2, 2, i]-s[1, 2, i]
+        a[8, 2]   = s[1, 3, i]-s[2, 2, i]
+        a[8, 9]   = s[1, 2, i]-s[2, 2, i]
+        a[9, 2]   = s[0, 2, i]-s[1, 3, i]
+        a[9, 3]   = s[1, 3, i]-s[0, 3, i]
+        a[9, 10]  = s[1, 3, i]-s[0, 3, i]
+        a[10, 3]  = sp[i]-s[1, 3, i]
+        a[10, 10] = s[0, 3, i]-s[1, 3, i]
+
+        b = np.array([Vu[0]*dsdt[0, 0, i]+F[0, i]*s[1, 0, i],
+                      Vi[0]*dsdt[1, 0, i]+F[0, i]*(s[2, 0, i]-s[1, 0, i]),
+                      Vd[0]*dsdt[2, 0, i]+F[0, i]*(s[2, 2, i]-s[2, 0, i]),
+                      Vu[1]*dsdt[0, 1, i]+F[1, i]*s[1, 1, i],
+                      Vi[1]*dsdt[1, 1, i]+F[1, i]*(s[2, 1, i]-s[1, 1, i]),
+                      Vd[1]*dsdt[2, 1, i]+F[1, i]*(s[2, 2, i]-s[2, 0, i]),
+                      Vu[2]*dsdt[0, 2, i]+F[2, i]*s[1, 2, i],
+                      Vi[2]*dsdt[1, 2, i]+F[2, i]*(s[2, 2, i]-s[1, 2, i]),
+                      Vd[2]*dsdt[2, 2, i]+(F[0, i]+F[1, i]+F[2, i])*(s[1, 3, i]-s[2, 2, i]),
+                      Vu[3]*dsdt[0, 3, i]+F[3, i]*s[1, 3, i],
+                      Vi[3]*dsdt[1, 3, i]+(F[0, i]+F[1, i]+F[2, i]+F[3, i])*(sp[i]-s[1, 3, i]),
+                     ])
+
+        # --------------------------------------------------------------------------------
+        # This is the original version
+
+        # a[0, 0]   =  (s[0, 2, i]-s[0, 0, i])*(s[1, 0, i]-s[0, 0, i])
+        # a[0, 3]   =  Aui[0]*damp_ui[0]*(s[1, 0, i]-s[0, 0, i])
+        # a[1, 0]   =  (s[0, 2, i]-s[0, 0, i])*(s[1, 2, i]-s[1, 0, i])
+        # a[1, 3]   = -Aui[0]*damp_ui[0]*(s[1, 0, i]-s[0, 0, i])
+        # a[1, 4]   =  Aid[0]*damp_id[0]*(s[2, 0, i]-s[1, 0, i])
+        # a[2, 4]   = -Aid[0]*damp_id[0]*(s[2, 0, i]-s[1, 0, i])
+        # a[3, 1]   =  (s[0, 2, i]-s[0, 1, i])*(s[1, 1, i]-s[1, 0, i])
+        # a[3, 5]   =  Aui[1]*damp_ui[1]*(s[1, 1, i]-s[0, 1, i])
+        # a[4, 1]   =  (s[0, 2, i]-s[0, 1, i])*(s[1, 2, i]-s[1, 1, i])
+        # a[4, 5]   = -Aui[1]*damp_ui[1]*(s[1, 1, i]-s[0, 1, i])
+        # a[4, 6]   =  Aid[1]*damp_id[1]*(s[2, 1, i]-s[1, 1, i])
+        # a[5, 6]   = -Aid[1]*damp_id[1]*(s[2, 1, i]-s[1, 1, i])
+        # a[6, 0]   =  (s[0, 2, i]-s[0, 0, i])*(s[0, 0, i]-s[1, 2, i])
+        # a[6, 1]   =  (s[0, 2, i]-s[0, 1, i])*(s[0, 1, i]-s[1, 2, i])
+        # a[6, 2]   =  (s[0, 3, i]-s[0, 2, i])*(s[1, 2, i]-s[0, 2, i])
+        # a[6, 7]   =  Aui[2]*damp_ui[2]*(s[1, 2, i]-s[0, 2, i])
+        # a[7, 2]   =  (s[0, 3, i]-s[0, 2, i])*(s[1, 3, i]-s[1, 2, i])
+        # a[7, 7]   = -Aui[2]*damp_ui[2]*(s[1, 2, i]-s[0, 2, i])
+        # a[7, 8]   =  Aid[2]*damp_id[2]*(s[2, 2, i]-s[1, 2, i])
+        # a[8, 8]   = -Aid[2]*damp_id[2]*(s[2, 2, i]-s[1, 2, i])
+        # a[9, 2]   =  (s[0, 3, i]-s[0, 2, i])*(s[0, 2, i]-s[0, 3, i])
+        # a[9, 9]   =  Aui[3]*damp_ui[3]*(s[1, 3, i]-s[0, 3, i])
+        # a[10, 2]  =  (s[0, 3, i]-s[0, 2, i])*(Spbar-s[1, 3, i])
+        # a[10, 9]  = -Aui[3]*damp_ui[3]*(s[1, 3, i]-s[0, 3, i])
+        # a[10, 10] =  Aid[3]*damp_id[3]*(s[2, 3, i]-s[1, 3, i])
+        # a[10, 11] = Vi[3]*(Spbar-s[1, 3, i])
+        # a[11, 10] = -Aid[3]*damp_id[3]*(s[2, 3, i]-s[1, 3, i])
+
+        # b = np.array([Vu[0]*dsdt[0, 0, i]+F[0, i]*s[1, 0, i],
+        #               Vi[0]*dsdt[1, 0, i]+F[0, i]*(s[1, 2, i]-s[1, 0 ,i]),
+        #               Vd[0]*dsdt[2, 0, i],
+        #               Vu[1]*dsdt[0, 1, i]+F[1, i]*s[1, 1, i],
+        #               Vi[1]*dsdt[1, 1, i]+F[1, i]*(s[1, 2, i]-s[1, 1, i]),
+        #               Vd[1]*dsdt[2, 1, i],
+        #               Vu[2]*dsdt[0, 2, i],
+        #               Vi[2]*dsdt[1, 2, i]+(F[0, i]+F[1, i]+F[2, i])*(s[1, 3, i]-s[1, 2, i]),
+        #               Vd[2]*dsdt[2, 2, i],
+        #               Vu[3]*dsdt[0, 3, i]+F[3, i]*s[0, 3, i],
+        #               Vi[3]*dsdt[1, 3, i]+(F[0, i]+F[1, i]+F[2, i]+F[3, i])*(Spbar-s[1, 3, i]),
+        #               Vd[3]*dsdt[2, 3, i],
+        #              ])
+
+        # X[:-1, i] = np.linalg.solve(a, b)
+
+        X[:-1, i] = lsq_linear(a, b, bounds=(np.zeros(11), np.ones(11)*np.inf)).x
+
+    # ----------------------------------------------------------------------------------------------
+    # Save data
+    # svdata = 1
+    if svpth != -1:
+        import netCDF4 as nc
+        # Write data into netCDF file
+        print 'Saving data as netCDF4 file to '+svpth+'...'
+        f = nc.Dataset(svpth+'inverse.nc', 'w', format='NETCDF4')
+        f.description = 'Outout of the inverse box model (boxMethod=1)'
+
+        f.createDimension('time', None)
+        f.createDimension('layer', 3)
+        f.createDimension('box', 4)
+        
+        t_nc = f.createVariable('t', 'f8', ('time'))
+        q02_nc = f.createVariable('Q02', 'f8', ('time'))
+        q12_nc = f.createVariable('Q12', 'f8', ('time'))
+        q23_nc = f.createVariable('Q23', 'f8', ('time'))
+        q3p_nc = f.createVariable('Q3p', 'f8', ('time'))
+        mix_ui_nc = f.createVariable('Wui', 'f8', ('box', 'time'))
+        mix_id_nc = f.createVariable('Wid', 'f8', ('box', 'time'))
+        s_nc = f.createVariable('s_box', 'f8', ('layer', 'box', 'time'))
+        f_nc = f.createVariable('f_box', 'f8', ('box', 'time'))
+        sp_nc = f.createVariable('sp', 'f8', ('time'))
+
+        t_nc[:] = mt
+        s_nc[:, :, :] = s
+        f_nc[:, :] = F
+        sp_nc[:] = sp
+        q02_nc[:] = X[0, :]
+        q12_nc[:] = X[1, :]
+        q23_nc[:] = X[2, :]
+        q3p_nc[:] = X[3, :]
+        mix_ui_nc[:, :] = X[[4, 6, 8, 10], :]
+        mix_id_nc[:, :] = X[[5, 7, 9, 11], :]
+
+        f.close()
+
+    inv = {'mt':    mt,
+           's_box': s,
+           'f_box': F,
+           'sp':    sp,
+           'Q02':   X[0, :],
+           'Q12':   X[1, :],
+           'Q23':   X[2, :],
+           'Q3p':   X[3, :],
+           'Wui':   X[[4, 6, 8, 10], :],
+           'Wid':   X[[5, 7, 9, 11], :]
+          }
+
+    return inv
+
+
+def box_inverse2(cal_clim=-1, svpth=-1):
+
+    import numpy as np
+    from box_gb.box_params import Aui, Aid, Vu, Vi, Vd, deltaSui, deltaSid, damp_mixing
+    from box_gb import box_sp
+    from scipy.optimize import lsq_linear  # Solve linear system with constrains
+
+    # Calculate/Read salinities and freshwater discharge in each box
+    # The function box_avgbox_clim works fine on pool-97, but does not work on my laptop.
+    # Thus use cal_clim = - 1 unless you want to change the averaging algorithm.
+    if cal_clim == 1:
+        from box_gb.box_ctd import box_avgbox_clim
+        mt, s, F = box_avgbox_clim(svpth='./data/')
+    else:
+        import netCDF4 as nc
+        fh = nc.Dataset('./data/s_box.nc', mode='r')
+        mt = fh.variables['t'][:]
+        s = fh.variables['s_box'][:]
+        F = fh.variables['f_box'][:]
+
+    su = s[0, :, :]
+    si0 = (s[1, 0, :]*Vi[0]+S[1, 1, :]*Vi[1]+S[1, 2, :]*Vi[2])/(Vi[0]+Vi[1]+Vi[2])
+    si3 = s[1, 3, :]
+    sd = (s[2, 0, :]*Vd[0]+S[2, 1, :]*Vd[1]+S[2, 2, :]*Vd[2])/(Vd[0]+Vd[1]+Vd[2])
+
+    # ----------------------------------------------------------------------------------------------
+    dmt = np.diff(mt)*24*60*60  # [s]
+    dsdt = np.diff(s, axis=2)/dmt  # [PSU s^-1]
+
+    mt = 0.5*(mt[:-1]+mt[1:])
+    su = 0.5*(su[:, :, :-1]+su[:, :, 1:])  # [PSU]
+    si0 = 0.5*(si0[:-1]+si0[1:])  # [PSU]
+    si3 = 0.5*(si3[:-1]+si3[1:])  # [PSU]
+    sd = 0.5*(sd[:-1]+sd[1:])  # [PSU]
+    F = 0.5*(F[:, :-1]+F[:, 1:])  # [m^3s^-1]
+
+    # Pacific Salinity (sp)
+    # sp = box_sp.box_sp(mt, lat_sp=56.875, lon_sp=-137.625)
+    sp = box_sp.box_sp(mt)  # [PSU]
+
+    X = np.zeros((7, mt.size))*np.nan
+
+    for i in range(mt.size):
+        # Solve linear system aX=b with constraint X>0
+        a = np.zeros((7, 7))
+
+        # --------------------------------------------------------------------------------
+        # This version is created on 2016/09/01 -- see my notes
+        # 2016/09/01
+        # Combine intermediate and deep layer for box 0, 1, and 2
+
+        alpha = np.min((np.max(((sd[i]-si3[i])/(sd[i]-si0[i]), 0)), 1)
+                
+        a[0, 0] = si0[i]-su[0, i]
+        a[0, 4] = Aui[0]*(si0[i]-su[0, i])
+        a[1, 1] = si0[i]-su[1, i]
+        a[1, 4] = Aui[1]*(si0[i]-su[1, i])
+        a[2, 0] = su[0, i]-si0[i]
+        a[2, 1] = su[1, i]-si0[i]
+        a[2, 2] = si0[i]-su[2, i]
+        a[2, 4] = Aui[2]*(si0[i]-su[2, i])
+        a[3, 2] = su[2, i]-si3[i]
+        a[3, 3] = si3[i]-su[3, i]
+        a[3, 5] = Aui[3]*(si3[i]-su[3, i])
+
+        a[0, 0]   = s[1, 0, i]-s[0, 0, i]
+        a[0, 4]   = s[1, 0, i]-s[0, 0, i]
+        a[1, 0]   = s[2, 0, i]-s[1, 0, i]
+        a[1, 4]   = s[0, 0, i]-s[1, 0, i]
+        a[1, 5]   = s[2, 0, i]-s[1, 0, i]
+        a[2, 0]   = s[2, 2, i]-s[2, 0, i]
+        a[2, 5]   = s[1, 0, i]-s[2, 0, i]
+        a[3, 1]   = s[1, 1, i]-s[0, 1, i]
+        a[3, 6]   = s[1, 1, i]-s[0, 1, i]
+        a[4, 1]   = s[2, 1, i]-s[1, 1, i]
+        a[4, 6]   = s[0, 1, i]-s[1, 1, i]
+        a[4, 7]   = s[2, 1, i]-s[1, 1, i]
+        a[5, 1]   = s[2, 2, i]-s[2, 1, i]
+        a[5, 7]   = s[1, 1, i]-s[2, 1, i]
+        a[6, 0]   = s[0, 0, i]-s[1, 2, i]
+        a[6, 1]   = s[0, 1, i]-s[1, 2, i]
+        a[6, 2]   = s[1, 2, i]-s[0, 2, i]
+        a[6, 8]   = s[1, 2, i]-s[0, 2, i]
+        a[7, 0]   = s[1, 2, i]-s[2, 2, i]
+        a[7, 1]   = s[1, 2, i]-s[2, 2, i]
+        a[7, 2]   = s[2, 2, i]-s[1, 2, i]
+        a[7, 8]   = s[0, 2, i]-s[1, 2, i]
+        a[7, 9]   = s[2, 2, i]-s[1, 2, i]
+        a[8, 2]   = s[1, 3, i]-s[2, 2, i]
+        a[8, 9]   = s[1, 2, i]-s[2, 2, i]
+        a[9, 2]   = s[0, 2, i]-s[1, 3, i]
+        a[9, 3]   = s[1, 3, i]-s[0, 3, i]
+        a[9, 10]  = s[1, 3, i]-s[0, 3, i]
+        a[10, 3]  = sp[i]-s[1, 3, i]
+        a[10, 10] = s[0, 3, i]-s[1, 3, i]
+
+        b = np.array([Vu[0]*dsdt[0, 0, i]+F[0, i]*s[1, 0, i],
+                      Vi[0]*dsdt[1, 0, i]+F[0, i]*(s[2, 0, i]-s[1, 0, i]),
+                      Vd[0]*dsdt[2, 0, i]+F[0, i]*(s[2, 2, i]-s[2, 0, i]),
+                      Vu[1]*dsdt[0, 1, i]+F[1, i]*s[1, 1, i],
+                      Vi[1]*dsdt[1, 1, i]+F[1, i]*(s[2, 1, i]-s[1, 1, i]),
+                      Vd[1]*dsdt[2, 1, i]+F[1, i]*(s[2, 2, i]-s[2, 0, i]),
+                      Vu[2]*dsdt[0, 2, i]+F[2, i]*s[1, 2, i],
+                      Vi[2]*dsdt[1, 2, i]+F[2, i]*(s[2, 2, i]-s[1, 2, i]),
+                      Vd[2]*dsdt[2, 2, i]+(F[0, i]+F[1, i]+F[2, i])*(s[1, 3, i]-s[2, 2, i]),
+                      Vu[3]*dsdt[0, 3, i]+F[3, i]*s[1, 3, i],
+                      Vi[3]*dsdt[1, 3, i]+(F[0, i]+F[1, i]+F[2, i]+F[3, i])*(sp[i]-s[1, 3, i]),
+                     ])
+
+        # --------------------------------------------------------------------------------
+        # This is the original version
+
+        # a[0, 0]   =  (s[0, 2, i]-s[0, 0, i])*(s[1, 0, i]-s[0, 0, i])
+        # a[0, 3]   =  Aui[0]*damp_ui[0]*(s[1, 0, i]-s[0, 0, i])
+        # a[1, 0]   =  (s[0, 2, i]-s[0, 0, i])*(s[1, 2, i]-s[1, 0, i])
+        # a[1, 3]   = -Aui[0]*damp_ui[0]*(s[1, 0, i]-s[0, 0, i])
+        # a[1, 4]   =  Aid[0]*damp_id[0]*(s[2, 0, i]-s[1, 0, i])
+        # a[2, 4]   = -Aid[0]*damp_id[0]*(s[2, 0, i]-s[1, 0, i])
+        # a[3, 1]   =  (s[0, 2, i]-s[0, 1, i])*(s[1, 1, i]-s[1, 0, i])
+        # a[3, 5]   =  Aui[1]*damp_ui[1]*(s[1, 1, i]-s[0, 1, i])
+        # a[4, 1]   =  (s[0, 2, i]-s[0, 1, i])*(s[1, 2, i]-s[1, 1, i])
+        # a[4, 5]   = -Aui[1]*damp_ui[1]*(s[1, 1, i]-s[0, 1, i])
+        # a[4, 6]   =  Aid[1]*damp_id[1]*(s[2, 1, i]-s[1, 1, i])
+        # a[5, 6]   = -Aid[1]*damp_id[1]*(s[2, 1, i]-s[1, 1, i])
+        # a[6, 0]   =  (s[0, 2, i]-s[0, 0, i])*(s[0, 0, i]-s[1, 2, i])
+        # a[6, 1]   =  (s[0, 2, i]-s[0, 1, i])*(s[0, 1, i]-s[1, 2, i])
+        # a[6, 2]   =  (s[0, 3, i]-s[0, 2, i])*(s[1, 2, i]-s[0, 2, i])
+        # a[6, 7]   =  Aui[2]*damp_ui[2]*(s[1, 2, i]-s[0, 2, i])
+        # a[7, 2]   =  (s[0, 3, i]-s[0, 2, i])*(s[1, 3, i]-s[1, 2, i])
+        # a[7, 7]   = -Aui[2]*damp_ui[2]*(s[1, 2, i]-s[0, 2, i])
+        # a[7, 8]   =  Aid[2]*damp_id[2]*(s[2, 2, i]-s[1, 2, i])
+        # a[8, 8]   = -Aid[2]*damp_id[2]*(s[2, 2, i]-s[1, 2, i])
+        # a[9, 2]   =  (s[0, 3, i]-s[0, 2, i])*(s[0, 2, i]-s[0, 3, i])
+        # a[9, 9]   =  Aui[3]*damp_ui[3]*(s[1, 3, i]-s[0, 3, i])
+        # a[10, 2]  =  (s[0, 3, i]-s[0, 2, i])*(Spbar-s[1, 3, i])
+        # a[10, 9]  = -Aui[3]*damp_ui[3]*(s[1, 3, i]-s[0, 3, i])
+        # a[10, 10] =  Aid[3]*damp_id[3]*(s[2, 3, i]-s[1, 3, i])
+        # a[10, 11] = Vi[3]*(Spbar-s[1, 3, i])
+        # a[11, 10] = -Aid[3]*damp_id[3]*(s[2, 3, i]-s[1, 3, i])
+
+        # b = np.array([Vu[0]*dsdt[0, 0, i]+F[0, i]*s[1, 0, i],
+        #               Vi[0]*dsdt[1, 0, i]+F[0, i]*(s[1, 2, i]-s[1, 0 ,i]),
+        #               Vd[0]*dsdt[2, 0, i],
+        #               Vu[1]*dsdt[0, 1, i]+F[1, i]*s[1, 1, i],
+        #               Vi[1]*dsdt[1, 1, i]+F[1, i]*(s[1, 2, i]-s[1, 1, i]),
+        #               Vd[1]*dsdt[2, 1, i],
+        #               Vu[2]*dsdt[0, 2, i],
+        #               Vi[2]*dsdt[1, 2, i]+(F[0, i]+F[1, i]+F[2, i])*(s[1, 3, i]-s[1, 2, i]),
+        #               Vd[2]*dsdt[2, 2, i],
+        #               Vu[3]*dsdt[0, 3, i]+F[3, i]*s[0, 3, i],
+        #               Vi[3]*dsdt[1, 3, i]+(F[0, i]+F[1, i]+F[2, i]+F[3, i])*(Spbar-s[1, 3, i]),
+        #               Vd[3]*dsdt[2, 3, i],
+        #              ])
+
+        # X[:-1, i] = np.linalg.solve(a, b)
+
+        X[:-1, i] = lsq_linear(a, b, bounds=(np.zeros(11), np.ones(11)*np.inf)).x
+
+    # ----------------------------------------------------------------------------------------------
+    # Save data
+    # svdata = 1
+    if svpth != -1:
+        import netCDF4 as nc
+        # Write data into netCDF file
+        print 'Saving data as netCDF4 file to '+svpth+'...'
+        f = nc.Dataset(svpth+'inverse.nc', 'w', format='NETCDF4')
+        f.description = 'Outout of the inverse box model (boxMethod=1)'
+
+        f.createDimension('time', None)
+        f.createDimension('layer', 3)
+        f.createDimension('box', 4)
+        
+        t_nc = f.createVariable('t', 'f8', ('time'))
+        q02_nc = f.createVariable('Q02', 'f8', ('time'))
+        q12_nc = f.createVariable('Q12', 'f8', ('time'))
+        q23_nc = f.createVariable('Q23', 'f8', ('time'))
+        q3p_nc = f.createVariable('Q3p', 'f8', ('time'))
+        mix_ui_nc = f.createVariable('Wui', 'f8', ('box', 'time'))
+        mix_id_nc = f.createVariable('Wid', 'f8', ('box', 'time'))
+        s_nc = f.createVariable('s_box', 'f8', ('layer', 'box', 'time'))
+        f_nc = f.createVariable('f_box', 'f8', ('box', 'time'))
+        sp_nc = f.createVariable('sp', 'f8', ('time'))
+
+        t_nc[:] = mt
+        s_nc[:, :, :] = s
+        f_nc[:, :] = F
+        sp_nc[:] = sp
+        q02_nc[:] = X[0, :]
+        q12_nc[:] = X[1, :]
+        q23_nc[:] = X[2, :]
+        q3p_nc[:] = X[3, :]
+        mix_ui_nc[:, :] = X[[4, 6, 8, 10], :]
+        mix_id_nc[:, :] = X[[5, 7, 9, 11], :]
+
+        f.close()
+
+    inv = {'mt':    mt,
+           's_box': s,
+           'f_box': F,
+           'sp':    sp,
+           'Q02':   X[0, :],
+           'Q12':   X[1, :],
+           'Q23':   X[2, :],
+           'Q3p':   X[3, :],
+           'Wui':   X[[4, 6, 8, 10], :],
+           'Wid':   X[[5, 7, 9, 11], :]
+          }
+
+    return inv
