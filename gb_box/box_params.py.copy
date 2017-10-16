@@ -1,26 +1,29 @@
-# Box model for Glacer Bay
-# The box model is developed based on the SoG box model. 
-# Use to initiate the Box Model (generate IC and BC, etc.)
-#
-# Chuning Wang
+"""
+Box model for Glacer Bay
+The box model is developed based on the SoG box model.
+Use to initiate the Box Model (generate IC and Forcing, etc.)
 
-# -----------------------------------------------------------------------------------------
+Chuning Wang
+"""
+
+# ------------------------- import modules ------------------------------------------------
+import pdb
+from datetime import datetime
+import netCDF4 as nc
+
 import numpy as np
 import matplotlib.dates as mdates
-from datetime import datetime
+from matplotlib import path
 from scipy.interpolate import interp1d
+from geopy.distance import vincenty
 
-import pdb
+from gb_box.utilities import gb_box_rivers
 
 # -----------------------------------------------------------------------------------------
-def get_area_volume(hu, hi, hd, pth='data/ARDEMv2.0.nc', boxMethod=1):
-    # Calculate volume and area for each box
-    from gb_toolbox.gb_discharge import get_avgbox
-    from matplotlib import path
-    from geopy.distance import vincenty
-    import netCDF4 as nc
+def get_area_volume(hu, hi, hd, pth='~/Documents/gb_roms/grd/GB_lr_grd.nc', boxMethod=1):
+    """ calculate area and volume for each box """
 
-    print 'Calculating area and volume for each box...'
+    print('Calculating area and volume for each box...')
     depth = hu+hi+hd
     fh = nc.Dataset(pth, mode='r')
     lon = fh.variables['lon'][:]-360

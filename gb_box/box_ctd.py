@@ -1,8 +1,8 @@
-from gb_toolbox.gb_ctd import rd_ctd, get_cruise
+from ocean_toolbox import ctd
 import numpy as np
 # import pdb
 
-def box_avgbox_clim(var='s', ctddir='./data/ctd.nc', pltfig=-1, svpth=-1, uselowess=-1, filterwindow=30, useallstns=-1):
+def box_avgbox_clim(var='salt', ctddir='./data/ctd.nc', pltfig=-1, svpth=-1, uselowess=-1, filterwindow=30, useallstns=-1):
     # Calculate box climatology (var and freshwater discharge, var can be any variable from CTD measuremsnts.)
 
     from box_gb.box_params import hu, hi, hd, deltat, boxMethod, t, F
