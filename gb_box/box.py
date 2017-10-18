@@ -6,6 +6,8 @@ Chuning Wang
 """
 
 # ------------------------- import modules ------------------------------------
+import os
+import fnmatch
 import pdb
 import glob
 import csv
@@ -516,14 +518,96 @@ class BoxSp(object):
 
     def __call__(self):
         if self.info['sl_sp'] == 's':
-            self.read_sp()
+            self.read_sp_soda()
         else:
             self.load_sp()
 
-        self.cal_clim()
-        self.cal_sp()
+        # self.cal_clim()
+        # self.cal_sp()
 
-    def read_sp_wod(self, lon_lim=[-138.30, -136.30], lat_lim=[57.50, 58.50], depth=500):
+    def read_sp_soda(self, lon_lim=[-138.30, -136.30], lat_lim=[57.50, 58.50], z_lim=[150, 300]):
+        """ read SODA data to get process the salinity profiles """
+
+        # parse lon/lat range
+        if 'sp_lon_lim' in self.info.keys():
+            lon_lim = self.info['sp_lon_lim']
+        else:
+            self.info['sp_lon_lim'] = lon_lim
+        if 'sp_lat_lim' in self.info.keys():
+            lat_lim = self.info['sp_lat_lim']
+        else:
+            self.info['sp_lat_lim'] = lat_lim
+        if 'sp_z_lim' in self.info.keys():
+            z_lim = self.info['sp_z_lim']
+        else:
+            self.info['sp_z_lim'] = z_lim
+
+        fgrid = _recursive_glob(self.info['sp_soda_dir_name'], pattern='SODA3_0.25deg_grid.nc')
+        flist = _recursive_glob(self.info['sp_soda_dir_name'], pattern='soda3.3.1*.nc')
+        self.data['time'] = []
+        self.data['salt'] = []
+        self.data['temp'] = []
+
+        fin = nc.Dataset(fgrid[0])
+        lon0 = fin.variables['geolon_t'][0, :]
+        lat0 = fin.variables['geolat_t'][:, 0]
+        z0 = fin.variables['st_ocean'][:]
+        fin.close()
+        msk_lon = (lon0 >= lon_lim[0]) & (lon0 <= lon_lim[1])
+        msk_lat = (lat0 >= lat_lim[0]) & (lat0 <= lat_lim[1])
+        msk_z = (z0 >= z_lim[0]) & (z0 <= z_lim[1])
+
+        for fname in flist:
+            fin = nc.Dataset(fname, 'r')
+            self.data['time'].append(fin.variables['time'][0])
+            tunit = fin.variables['time'].units
+            salt_pr = fin.variables['salt'][0, msk_z, msk_lat, msk_lon]
+            temp_pr = fin.variables['temp'][0, msk_z, msk_lat, msk_lon]
+            salt_pr = salt_pr.mean(axis=(1, 2))
+            temp_pr = temp_pr.mean(axis=(1, 2))
+            self.data['salt'].append(salt_pr.mean())
+            self.data['temp'].append(temp_pr.mean())
+
+        # convert time from 1980 based to 1900 based
+        self.data['time'] = nc.date2num(nc.num2date(self.data['time'] , tunit), 'days since 1900-01-01 00:00:00')
+
+        # save to netCDF file
+        fout = nc.Dataset(self.info['sp_file_name'], 'w')
+
+        fout.createDimension('time')
+
+        for var in ['time', 'salt', 'temp']:
+            fout.createVariable(var, 'f8', ('time'))
+            fout.variables[var][:] = self.data[var]
+
+        fout.close()
+
+        return None
+
+    def load_sp(self):
+        """ load data from netCDF file """
+
+        fin = nc.Dataset(self.info['sp_file_name'])
+        for var in ['time', 'yearday', 'lat', 'lon', 'depth', 'salt', 'temp']:
+            self.data_raw[var] = fin.variables[var][:]
+        fin.close()
+
+        return None
+
+    def cal_sp(self, zmin=150, zmax=300):
+        """ calcualte sp from climatology data. """
+
+        self.data['time'] = self.data_raw['time']
+        self.data['yearday'] = self.data_raw['yearday']
+        mskz = (self.data_raw['depth'] >= zmin) & (self.data_raw['depth'] <= zmax)
+        self.data['sp'] = np.nanmean(self.data_raw['salt'][:, mskz], axis=1)
+
+        return None
+
+    # ------------------------- obsolete --------------------------------------------------
+
+
+    def _read_sp_wod(self, lon_lim=[-138.30, -136.30], lat_lim=[57.50, 58.50], depth=500):
         """ read WOD raw file and process the salinity profiles """
 
         from wodpy import wod
@@ -610,104 +694,7 @@ class BoxSp(object):
 
         return None
 
-    def read_sp_soda(self, lon_lim=[-138.30, -136.30], lat_lim=[57.50, 58.50], depth=500):
-        """ read SODA data to get process the salinity profiles """
-
-        from wodpy import wod
-
-        # parse lon/lat range
-        if 'sp_lon_lim' in self.info.keys():
-            lon_lim = self.info['sp_lon_lim']
-        else:
-            self.info['sp_lon_lim'] = lon_lim
-        if 'sp_lat_lim' in self.info.keys():
-            lat_lim = self.info['sp_lat_lim']
-        else:
-            self.info['sp_lat_lim'] = lat_lim
-
-        zlev = np.arange(depth)
-        lat = []
-        lon = []
-        spr = []
-        tpr = []
-        time = []
-        yearday = []
-
-        fid = open(self.info['sp_raw_file_name'])
-        cts = 0  # counter
-        loop = True
-        while loop:
-            prof = wod.WodProfile(fid)
-            lon0, lat0 = prof.longitude(), prof.latitude()
-
-            if (lon0 > lon_lim[0]) & (lon0 < lon_lim[1]) & (lat0 > lat_lim[0]) & (lat0 < lat_lim[1]):
-                zpr = prof.z()
-                if len(zpr) > 1:
-                    salt = prof.s()
-                    if not np.all(salt.mask):
-                        lat.append(lat0)
-                        lon.append(lon0)
-                        time.append(nc.date2num(prof.datetime(), 'days since 1900-01-01'))
-                        yearday.append(prof.datetime().timetuple().tm_yday)
-
-                        temp = prof.s()
-                        zmsk2 = ~salt.mask
-                        zpr = zpr[zmsk2]
-                        salt = salt[zmsk2]
-                        temp = temp[zmsk2]
-
-                        zmin, zmax = zpr[0], zpr[-1]
-                        zmsk = (zlev >= zmin) & (zlev <= zmax)
-                        spr_i = np.zeros(depth)*np.NaN
-                        spr_i[zmsk] = np.interp(zlev[zmsk], zpr, salt)
-                        tpr_i = np.zeros(depth)*np.NaN
-                        tpr_i[zmsk] = np.interp(zlev[zmsk], zpr, salt)
-                        spr.append(spr_i)
-                        tpr.append(tpr_i)
-
-            loop = not prof.is_last_profile_in_file(fid)
-            cts += 1
-
-        self.data_raw['lat'] = np.array(lat)
-        self.data_raw['lon'] = np.array(lon)
-        self.data_raw['time'] = np.array(time)
-        self.data_raw['yearday'] = np.array(yearday)
-        self.data_raw['salt'] = np.array(spr)
-        self.data_raw['temp'] = np.array(tpr)
-        self.data_raw['depth'] = zlev
-
-        # save to netCDF file
-        fout = nc.Dataset(self.info['sp_file_name'], 'w')
-
-        fout.createDimension('time')
-        fout.createDimension('z', depth)
-
-        for var in ['time', 'yearday', 'lon', 'lat']:
-            fout.createVariable(var, 'f8', ('time'))
-            fout.variables[var][:] = self.data_raw[var]
-
-        for var in ['salt', 'temp']:
-            fout.createVariable(var, 'f8', ('time', 'z'))
-            fout.variables[var][:] = self.data_raw[var]
-
-        fout.createVariable('depth', 'f8', ('z'))
-        fout.variables['depth'][:] = self.data_raw['depth']
-
-        fout.close()
-
-        return None
-
-    def load_sp(self):
-        """ load data from netCDF file """
-
-        fin = nc.Dataset(self.info['sp_file_name'])
-        for var in ['time', 'yearday', 'lat', 'lon', 'depth', 'salt', 'temp']:
-            self.data_raw[var] = fin.variables[var][:]
-        fin.close()
-
-        return None
-
-    def cal_clim(self):
+    def _cal_clim(self):
         """ calclate climatology for a single profile """
 
         salt_avg = np.nanmean(self.data_raw['salt'], axis=0)
@@ -751,60 +738,18 @@ class BoxSp(object):
 
         return None
 
-    def cal_sp(self, zmin=150, zmax=300):
-        """ calcualte sp from climatology data. """
-
-        self.data['time'] = self.data_raw['time']
-        self.data['yearday'] = self.data_raw['yearday']
-        mskz = (self.data_raw['depth'] >= zmin) & (self.data_raw['depth'] <= zmax)
-        self.data['sp'] = np.nanmean(self.data_raw['salt'][:, mskz], axis=1)
-
-        return None
-
-        # import statsmodels.api as sm
-
-        # # Load WOD salinity data
-        # fh = nc.Dataset('./data/s_wod.nc', 'r')
-        # mm = fh.variables['mm'][:]
-        # lat = fh.variables['lat'][:]
-        # lon = fh.variables['lon'][:]
-        # d = fh.variables['d'][:]
-        # s = fh.variables['s'][:]
-
-        # # Select data at coordinate (lon_sp, lat_sp)
-        # msk1 = lat==lat_sp
-        # msk2 = lon==lon_sp
-        # msk3 = (d>=d_lim[0]) & (d<=d_lim[1])
-        # sp = s[:, msk3, msk1, msk2]
-        # sp = np.mean(sp, axis=1)
-
-        # yd = np.zeros(12)
-        # for i in range(yd.size):
-        #     yd[i] = datetime(1, i+1, 15).timetuple().tm_yday
-
-        # yd = np.concatenate((yd-366, yd, yd+366))
-        # sp = np.concatenate((sp, sp, sp))
-
-        # yd_i = np.arange(-300, 300*2)
-        # sp_i = interp1d(yd,sp)(yd_i)
-
-        # # LOWESS filter
-        # lowess = sm.nonparametric.lowess(sp_i, yd_i, frac=0.2)
-        # # Interpolate onto mt
-        # # Since num2date cannot deal with mt<1, add 366 days (1 year) if mt<1
-        # mt2 = np.zeros(mt.size)
-        # mt2[:] = mt
-        # mt2[mt2<1] = mt2[mt2<1]+366
-        # pyt = np.array(mdates.num2date(mt2))
-        # yd_mt = np.array([pyt[i].timetuple().tm_yday for i in range(pyt.size)])
-        # sp = interp1d(lowess[:, 0], lowess[:, 1])(yd_mt)
-
-        # # pdb.set_trace()
-
-        # return sp
-
 # ------------------------- other functionals ---------------------------------------------
 
+
+def _recursive_glob(in_dir, pattern='*'):
+    ''' Search recursively for files matching a specified pattern. '''
+
+    matches = []
+    for root, dirnames, filenames in os.walk(in_dir):
+        for filename in fnmatch.filter(filenames, pattern):
+            matches.append(os.path.join(root, filename))
+
+    return matches
 
 def _get_rivers(data_path, save_path, lat_lim, lon_lim):
     """ load river discharge from raw discharge file.
