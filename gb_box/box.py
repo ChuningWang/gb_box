@@ -525,7 +525,7 @@ class BoxSp(object):
         # self.cal_clim()
         # self.cal_sp()
 
-    def read_sp_soda(self, lon_lim=[-138.30, -136.30], lat_lim=[57.50, 58.50], z_lim=[150, 300]):
+    def read_sp_soda(self, lon_lim=[-138.30+360, -136.30+360], lat_lim=[57.50, 58.50], z_lim=[150, 300]):
         """ read SODA data to get process the salinity profiles """
 
         # parse lon/lat range
@@ -542,8 +542,8 @@ class BoxSp(object):
         else:
             self.info['sp_z_lim'] = z_lim
 
-        fgrid = _recursive_glob(self.info['sp_soda_dir_name'], pattern='SODA3_0.25deg_grid.nc')
-        flist = _recursive_glob(self.info['sp_soda_dir_name'], pattern='soda3.3.1*.nc')
+        fgrid = _recursive_glob(self.info['sp_soda_dir_name'], pattern='*_grid.nc')
+        flist = _recursive_glob(self.info['sp_soda_dir_name'], pattern='soda3.3.1_5dy_ocean_*.nc')
         self.data['time'] = []
         self.data['salt'] = []
         self.data['temp'] = []
@@ -563,8 +563,10 @@ class BoxSp(object):
             tunit = fin.variables['time'].units
             salt_pr = fin.variables['salt'][0, msk_z, msk_lat, msk_lon]
             temp_pr = fin.variables['temp'][0, msk_z, msk_lat, msk_lon]
-            salt_pr = salt_pr.mean(axis=(1, 2))
-            temp_pr = temp_pr.mean(axis=(1, 2))
+            # salt_pr = salt_pr.mean(axis=(1, 2))
+            # temp_pr = temp_pr.mean(axis=(1, 2))
+            salt_pr = salt_pr.mean(axis=1).mean(axis=1)
+            temp_pr = temp_pr.mean(axis=1).mean(axis=1)
             self.data['salt'].append(salt_pr.mean())
             self.data['temp'].append(temp_pr.mean())
 

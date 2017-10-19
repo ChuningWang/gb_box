@@ -12,12 +12,12 @@ INFO = {'grid_file_name': '/Users/CnWang/Documents/gb_roms/grd/GlacierBay_lr_grd
         'sl_rivers': 'l',
         'sl_sp': 'l'}
 
-INFO = {'grid_file_name': '/glade/p/work/chuning/gb_roms/grd/GlacierBay_lr_grd.nc',
+INFO = {'grid_file_name': '/Users/chuning/GlacierBay_lr_grd.nc',
         'river_raw_file_name': '/glade/p/work/chuning/data/gb_discharge.nc',
         'river_file_name': '/glade/u/home/chuning/git/gb_box/data/gb_box_rivers.nc',
         'wind_file_name': '/glade/u/home/chuning/git/gb_box/data/juneau.csv',
-        'sp_soda_dir_name': '/glade/p/work/chuning/data/SODA/',
-        'sp_file_name': '/glade/u/home/chuning/git/gb_box/data/gb_box_sp.nc',
+        'sp_soda_dir_name': '/Volumes/P1/Data/SODA/SODA_3.3.1/',
+        'sp_file_name': '/Users/chuning/git/gb_box/data/gb_box_sp.nc',
         'sl_rivers': 's',
         'sl_sp': 's'}
 
