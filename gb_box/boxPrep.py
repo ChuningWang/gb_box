@@ -6,61 +6,60 @@ Chuning Wang
 """
 
 # ------------------------- import modules ------------------------------------
+import ConfigParser
 import os
 import fnmatch
-import pdb
 import glob
 import csv
 from datetime import datetime, timedelta
 
 import numpy as np
+from scipy import interpolate
 import netCDF4 as nc
+import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from matplotlib import path
 from mpl_toolkits.basemap import Basemap
 from scipy.signal import filtfilt
 
-# ------------------------- constants -----------------------------------------
-# working directory
-ROOT_DIR = './'
-
-# grid directory
-GRID_FILE = '~/Documents/gb_roms/grd/GlacierBay_hr_grd.nc'
-
-# FORCING data directory
-FORCING_DIR = './data/'
-
-# Constants
-H_SI = 15
-H_ID = 50
-
-# Switches
-GET_AV = 1
-GET_F = 0
-CAL_CLIM = 0
-BOX_METHOD = 1
-F_SCALE = 1
-TIDE_SN = 1
-DAMP_MIXING = 1
-DAMP_WIND_MIXING = 1
 
 # ------------------------- class Box -----------------------------------------
-
-
 class Box(object):
     """ class to store some basic info about the box model. """
 
-    def __init__(self, info, H_SI=10, H_ID=50):
+    def __init__(self, info):
         self.info = info
-        self.h_si = H_SI
-        self.h_id = H_ID
         if 'box_method' not in self.info.keys():
             self.info['box_method'] = 1
-        elif 'sl_river' not in self.info.keys():
+
+        if 'sl_river' not in self.info.keys():
             self.info['sl_river'] = 'l'
+
+        if 'sl_sp' not in self.info.keys():
+            self.info['sl_sp'] = 'l'
+
+        if 'clim' not in self.info.keys():
+            self.info['clim'] = False
+
+        if 'compare' not in self.info.keys():
+            self.info['compare'] = False
+
         self.boxes = {}
         self.volumes = {}
         self.areas = {}
+        self.consts = {}
+        self.measurements = {}
+
+        self.get_consts()
+
+        if self.info['clim']:
+            self.info['t0'] = 1.
+            self.info['t1'] = 366.
+
+        self.time = np.arange(self.info['t0'],
+                              self.info['t1'],
+                              self.consts['dt'])
+
         return None
 
     def __call__(self):
@@ -68,6 +67,21 @@ class Box(object):
         self.get_area_volume()
         if self.info['box_method'] == 1:
             self._fix_box_method1()
+        if self.info['box_method'] == 2:
+            self._fix_box_method2()
+
+        self.get_consts2()
+
+        # get forcing data
+        self.BoxRivers = BoxRivers(self)
+        self.BoxRivers()
+        self.BoxSp = BoxSp(self)
+        self.BoxSp()
+
+        if self.info['compare']:
+            self.get_measurements()
+
+        return None
 
     def get_box(self):
         """ generate a python dict contains the coordinates of the boxes. """
@@ -75,32 +89,25 @@ class Box(object):
         if self.info['box_method'] == 1:
             print('Generating Box Type 1...')
             self.boxes['box0'] = np.array([
-                [-137.30, 59.15],
-                [-136.50, 59.15],
-                [-136.15, 58.75],
-                [-135.60, 58.75],
-                [-135.60, 58.55],
                 [-136.65, 58.55],
-                [-137.30, 58.65]])
-
-            self.boxes['box1'] = np.array([
-                [-136.50, 59.15],
+                [-137.30, 58.65],
+                [-137.30, 59.15],
                 [-135.70, 59.15],
                 [-135.60, 58.75],
-                [-136.15, 58.75]])
+                [-135.60, 58.55]])
 
-            self.boxes['box2'] = np.array([
+            self.boxes['box1'] = np.array([
                 [-136.65, 58.55],
                 [-135.60, 58.55],
                 [-135.60, 58.50],
                 [-136.00, 58.35]])
 
-            self.boxes['box3'] = np.array([
+            self.boxes['box2'] = np.array([
                 [-136.65, 58.55],
-                [-136.60, 58.35],
+                [-136.75, 58.25],
                 [-136.50, 57.95],
                 [-135.20, 57.95],
-                [-135.30, 58.50],
+                [-135.40, 58.55],
                 [-135.60, 58.55],
                 [-135.60, 58.50],
                 [-136.00, 58.35]])
@@ -108,74 +115,76 @@ class Box(object):
         if self.info['box_method'] == 2:
             print('Generating Box Type 2...')
             self.boxes['box0'] = np.array([
-                [-137.7, 59.1],
-                [-137.7, 59.25],
-                [-136.6, 59.25],
-                [-136.15, 58.725],
-                [-136.65, 58.725],
-                [-137.15, 58.65]])
+                [-136.65, 58.65],
+                [-137.30, 58.65],
+                [-137.30, 59.15],
+                [-136.40, 59.15],
+                [-136.20, 58.75]])
 
             self.boxes['box1'] = np.array([
-                [-136.6, 59.25],
-                [-136.3, 59.25],
-                [-135.7, 59.0],
-                [-135.7, 58.725],
-                [-136., 58.825],
-                [-136.15, 58.725],
-                [-136.3, 58.9]])
+                [-136.20, 58.75],
+                [-136.40, 59.15],
+                [-135.70, 59.15],
+                [-135.60, 58.75]])
 
             self.boxes['box2'] = np.array([
-                [-136.15, 58.725],
-                [-136., 58.825],
-                [-135.7, 58.725],
-                [-135.65, 58.55],
                 [-136.65, 58.55],
-                [-136.65, 58.725]])
+                [-136.65, 58.65],
+                [-136.20, 58.75],
+                [-135.60, 58.75],
+                [-135.60, 58.55]])
 
             self.boxes['box3'] = np.array([
                 [-136.65, 58.55],
-                [-135.65, 58.55],
-                [-135.65, 58.45],
-                [-136.0, 58.375]])
+                [-135.60, 58.55],
+                [-135.60, 58.50],
+                [-136.00, 58.35]])
 
             self.boxes['box4'] = np.array([
                 [-136.65, 58.55],
-                [-136.6, 58.35],
-                [-136.5, 58.00],
-                [-135.2, 58.00],
-                [-135.3, 58.50],
-                [-135.65, 58.45],
-                [-136.0, 58.375]])
+                [-136.75, 58.25],
+                [-136.50, 57.95],
+                [-135.20, 57.95],
+                [-135.40, 58.55],
+                [-135.60, 58.55],
+                [-135.60, 58.50],
+                [-136.00, 58.35]])
 
-        elif self.info['box_method'] == 3:
-            print ('Generating Box Type 3...')
-            self.boxes['box0'] = np.array([[-137.7, 59.1],
-                                           [-137.7, 59.25],
-                                           [-136.6, 59.25],
-                                           [-136.15, 58.725],
-                                           [-136.65, 58.725],
-                                           [-137.15, 58.65]])
+        self.boxes_list = self.boxes.keys()
+        self.boxes_list.sort()
 
-            self.boxes['box1'] = np.array([[-136.6, 59.25],
-                                           [-136.3, 59.25],
-                                           [-135.7, 59.0],
-                                           [-135.7, 58.725],
-                                           [-136., 58.825],
-                                           [-136.15, 58.725],
-                                           [-136.3, 58.9]])
+        return None
 
-            self.boxes['box2'] = np.array([[-136.15, 58.725],
-                                           [-136., 58.825],
-                                           [-135.7, 58.725],
-                                           [-135.6, 58.425],
-                                           [-135.975, 58.375],
-                                           [-136.0, 58.575]])
+    def get_consts(self):
+        """ parse model constants from box.in to self.consts. """
 
-            self.boxes['box3'] = np.array([[-136.65, 58.725],
-                                           [-136.15, 58.725],
-                                           [-136.0, 58.575],
-                                           [-135.975, 58.375],
-                                           [-136.65, 58.575]])
+        config = ConfigParser.ConfigParser()
+        config.read('box.in')
+        for opt in config.options(self.info['case']):
+            self.consts[opt.lower()] = float(config.get(self.info['case'], opt))
+
+        return None
+
+    def get_consts2(self):
+        """ add some combination of constants """
+
+        for boxi in self.boxes_list:
+            idx = boxi[-1]
+            try:
+                self.consts['c' + idx + 'brs'] = \
+                    self.consts['c' + idx] * self.consts['beta'] * \
+                    self.consts['rho0'] * self.consts['s0'] * \
+                    self.consts['s2d']
+            except:
+                pass
+
+            try:
+                self.consts['mui' + idx] = \
+                    self.consts['omegaui' + idx] * self.areas['Aui' + idx]
+                self.consts['mid' + idx] = \
+                    self.consts['omegaid' + idx] * self.areas['Aid' + idx]
+            except:
+                pass
 
         return None
 
@@ -202,9 +211,9 @@ class Box(object):
         volume = area*depth
 
         # volume for each vertical layer
-        depth_d = depth - self.h_id
+        depth_d = depth - self.consts['h_id']
         depth_d[depth_d < 0] = 0
-        depth_i = depth - self.h_si
+        depth_i = depth - self.consts['h_si']
         depth_i[depth_i < 0] = 0
 
         volume_d = area*(depth_d)
@@ -216,25 +225,41 @@ class Box(object):
         area_s = area*(depth > 0)
 
         # calculate box total volume
-        box_list = self.boxes.keys()
-        for box in box_list:
+        for box in self.boxes_list:
             idx = box[-1]
             box_i = box_idx == float(idx)
             self.volumes['V' + idx] = np.sum(volume*box_i)
-            self.volumes['Vs' + idx] = np.sum(volume_s*box_i)
+            self.volumes['Vu' + idx] = np.sum(volume_s*box_i)
             self.volumes['Vi' + idx] = np.sum(volume_i*box_i)
             self.volumes['Vd' + idx] = np.sum(volume_d*box_i)
-            self.areas['As' + idx] = np.sum(area_s*box_i)
-            self.areas['Asi' + idx] = np.sum(area_si*box_i)
+            self.areas['Au' + idx] = np.sum(area_s*box_i)
+            self.areas['Aui' + idx] = np.sum(area_si*box_i)
             self.areas['Aid' + idx] = np.sum(area_id*box_i)
 
         return None
 
     def _fix_box_method1(self):
-        """ combine intermediate and deep layer for box 2. """
+        """ combine intermediate and deep layer for box 1. """
 
+        self.volumes['Vi1'] = self.volumes['Vi1'] + self.volumes['Vd1']
+        self.volumes['Vd1'] = 0
         self.volumes['Vi2'] = self.volumes['Vi2'] + self.volumes['Vd2']
         self.volumes['Vd2'] = 0
+
+        return None
+
+    def _fix_box_method2(self):
+        """ combine intermediate and deep layer for box 2. """
+
+        self.volumes['Vd2'] = self.volumes['Vd2'] + self.volumes['Vd0'] + \
+            self.volumes['Vd1']
+        self.volumes['Vd0'] = 0
+        self.volumes['Vd1'] = 0
+        self.volumes['Vi3'] = self.volumes['Vi3'] + self.volumes['Vd3']
+        self.volumes['Vd3'] = 0
+        self.volumes['Vi4'] = self.volumes['Vi4'] + self.volumes['Vd4']
+        self.volumes['Vd4'] = 0
+
         return None
 
     def plt_box(self):
@@ -261,8 +286,7 @@ class Box(object):
         m_h.drawparallels(np.arange(lat_min, lat_max, 0.25),
                           labels=[1, 0, 0, 0], fontsize=6, linewidth=.2)
 
-        box_list = self.boxes.keys()
-        for box in box_list:
+        for box in self.boxes_list:
             lon = self.boxes[box][:, 0]
             lat = self.boxes[box][:, 1]
             xpos, ypos = m_h(lon, lat)
@@ -270,6 +294,16 @@ class Box(object):
             m_h.plot([xpos[0], xpos[-1]], [ypos[0], ypos[-1]], '--k')
 
         return None
+
+    def get_measurements(self):
+        """ get in-situ measurements climatology. """
+
+        fid = open('./data/gb_salt_clim_' + str(self.info['box_method']) + '.txt')
+        text = fid.readlines()
+        fid.close()
+        text = [x.strip().split(',') for x in text]
+        for line in text:
+            self.measurements[line[0]] = np.array(line[1:]).astype(float)
 
 # ------------------------- class BoxReaders ----------------------------------
 
@@ -280,56 +314,72 @@ class BoxRivers(object):
     def __init__(self, Box):
         self.info = Box.info
         self.boxes = Box.boxes
+        self.boxes_list = Box.boxes_list
+        self.time = Box.time
+        self.scale_factor = Box.consts['scale_river']
         if 'sl_rivers' not in self.info.keys():
             self.info['sl_rivers'] = 'l'
 
         self.data = {}
+        if self.info['clim']:
+            self.climatology = {}
 
     def __call__(self):
         if self.info['sl_rivers'] == 's':
+            print('Loading freshwater discharge...')
             self.get_box_rivers()
         elif self.info['sl_rivers'] == 'l':
+            print('Load river discharge data from netCDF file...')
             self.load_box_rivers()
+
+        if self.scale_factor != 1:
+            # scale river discharge
+            self.scale_river()
+
+        if self.info['clim']:
+            self.cal_clim()
+            self.data = self.climatology
+
+        self.interp()
 
     def get_box_rivers(self):
         """ calculate river discharge in each box """
 
         # Load discharge data
-        print('Loading freshwater discharge...')
         fin = nc.Dataset(self.info['river_raw_file_name'], 'r')
         self.data['time'] = fin.variables['t'][:]
         lat = fin.variables['lat'][:]
         lon = fin.variables['lon'][:]
 
-        # time conversion
-        dtime = (datetime(1900, 1, 1) - datetime(1, 1, 1)).days
-        self.data['time'] = self.data['time'] + dtime
+        # # time conversion
+        # don't do time conversion here - use ROMS convention 1900-01-01
+        # dtime = (datetime(1900, 1, 1) - datetime(1, 1, 1)).days
+        # self.data['time'] = self.data['time'] + dtime
 
         hydro_box = _get_box_idx(self.boxes, lon, lat)
         # Find coastal cells
         coast = fin.variables['coast'][:]
         hydro_box[coast.mask] = -1
 
-        fin.close()
-
         # Divide GB into several hydro regions
         print('Averaging data within each box...')
 
-        box_list = self.boxes.keys()
-        for box in box_list:
+        for box in self.boxes_list:
             box_idx = box[-1]
             self.data['river' + box_idx] = np.zeros(self.data['time'].shape)
 
         for i in range(len(self.data['time'])):
             rslice = fin.variables['discharge'][i, :, :]
             rslice[rslice <= 0] = np.NaN
-            for box in box_list:
+            for box in self.boxes_list:
                 box_idx = box[-1]
                 self.data['river' + box_idx][i] = np.nansum(
                     rslice[hydro_box == float(box_idx)])
 
+        fin.close()
+
         # save data
-        print 'Saving data to ' + self.info['river_file_name']
+        print('Saving data to ' + self.info['river_file_name'])
         fout = nc.Dataset(self.info['river_file_name'], 'w')
         fout.description = 'Glacier Bay freshwater discharge and deglaciation, sum of each box'
 
@@ -337,9 +387,9 @@ class BoxRivers(object):
 
         t_nc = fout.createVariable('time', 'f8', ('time'))
         t_nc[:] = self.data['time']
-        t_nc.units = 'days since 0001-01-01'
+        t_nc.units = 'days since 1900-01-01'
 
-        for box in box_list:
+        for box in self.boxes_list:
             box_idx = box[-1]
             var_nc = fout.createVariable('river' + box_idx, 'f8', ('time'))
             var_nc[:] = self.data['river' + box_idx]
@@ -350,15 +400,64 @@ class BoxRivers(object):
     def load_box_rivers(self):
         ''' load data from netCDF file. '''
 
-        print('Load data from netCDF file...')
         fin = nc.Dataset(self.info['river_file_name'], 'r')
         self.data['time'] = fin.variables['time'][:]
 
-        box_list = self.boxes.keys()
-        for box in box_list:
+        for box in self.boxes_list:
             box_idx = box[-1]
             self.data['river' + box_idx] = fin.variables['river' + box_idx][:]
         fin.close()
+
+        return None
+
+    def scale_river(self):
+        """ scale the river discharge with a scaling factor defined in box.in. """
+
+        for box in self.boxes_list:
+            box_idx = box[-1]
+            self.data['river' + box_idx] = \
+                self.data['river' + box_idx]*self.scale_factor
+        return None
+
+    def cal_clim(self):
+        """ calculate climatology. """
+
+        dtime = nc.num2date(self.data['time'], 'days since 1900-01-01')
+        self.data['yearday'] = np.array([i.timetuple().tm_yday for i in dtime])
+
+        self.climatology['time'] = np.arange(366) + 1
+        for box in self.boxes_list:
+            box_idx = box[-1]
+            self.climatology['river' + box_idx] = []
+
+            for i in range(366):
+                msk = self.data['yearday'] == i + 1
+                self.climatology['river' + box_idx].append(self.data['river' + box_idx][msk].mean())
+            self.climatology['river' + box_idx] = np.array(self.climatology['river' + box_idx])
+
+        return None
+
+    def interp(self):
+        """ interpolate data onto given times. """
+
+        for box in self.boxes_list:
+            box_idx = box[-1]
+            self.data['river' + box_idx] = np.interp(self.time,
+                self.data['time'], self.data['river' + box_idx])
+
+        self.data['time'] = self.time
+
+        return None
+
+    def plt_rivers(self):
+        """ plot river discharge in each box. """
+
+        plt.figure()
+        for box in self.boxes_list:
+            box_idx = box[-1]
+            plt.plot(self.data['time'], self.data['river' + box_idx])
+
+        plt.legend(self.boxes_list)
 
         return None
 
@@ -367,7 +466,7 @@ class BoxCDO(object):
     """
     class to parse Juneau wind data.
 
-    Here is the documentation from CDO - 
+    Here is the documentation from CDO -
 
     The five core values are:
     PRCP = Precipitation (mm or inches as per user preference, inches to hundredths on Daily Form pdf file)
@@ -463,12 +562,12 @@ class BoxCDO(object):
         self.data = {}
 
     def __call__(self):
+        print('Loading Juneau weather station data...')
         self.read_cdo()
 
     def read_cdo(self):
         """ read CDO csv dataset. """
 
-        print 'Loading Juneau weather station data...'
         data = []
         header = []
         fin = open(self.info['wind_file_name'])
@@ -506,24 +605,74 @@ class BoxCDO(object):
 
 
 class BoxSp(object):
-    """ class to parse Pacific salinity data. """
+    """
+    class to parse Pacific salinity data.
+    Only run this piece of code on Alnilam.
+
+    2019/11/14 implement a new way to represent Sp.
+    Use WOD measurements instead of SODA. SODA is biased
+    high in my case.
+    """
 
     def __init__(self, Box):
         self.info = Box.info
-        if 'sl_sp' not in self.info.keys():
-            self.info['sl_sp'] = 'l'
-        self.data_raw = {}
+        self.time = Box.time
         self.data = {}
-        self.climatology = {}
+        if self.info['clim']:
+            self.climatology = {}
+
+        # if Box.info['compare']:
+        #     Box.get_measurements()
+        # self.measurements = Box.measurements
 
     def __call__(self):
-        if self.info['sl_sp'] == 's':
-            self.read_sp_soda()
-        else:
-            self.load_sp()
+        # if self.info['sl_sp'] == 's':
+        #     print('Read Sp data from SODA files...')
+        #     self.read_sp_soda()
+        # else:
+        #     print('Load Sp data from netCDF file...')
+        #     self.load_sp()
+        # self.filter()
+        # self.interp_daily()
+        # self.interp()
 
-        # self.cal_clim()
-        # self.cal_sp()
+        self.get_sp_data()
+
+        if self.info['clim']:
+            self.cal_clim()
+            # self.data = self.climatology
+
+        self.interp()
+
+    def get_sp_data(self):
+        """ get sp data from measurements in Icy Strait. """
+
+        try:
+            fid = open('./data/gb_icy_strait.txt', 'r')
+        except:
+            fid = open('../data/gb_icy_strait.txt', 'r')
+        text = fid.readlines()
+        fid.close()
+        text = [x.strip().split(',') for x in text]
+        self.data['time'] = np.array(text[0][1:]).astype(float)
+        self.data['salt'] = np.array(text[2][1:]).astype(float)
+        self.data['temp'] = np.array(text[4][1:]).astype(float)
+
+        # spline interpolate to daily
+        time = np.arange(366) + 1
+        spl = interpolate.splrep(self.data['time'], self.data['salt'])
+        self.data['salt'] = interpolate.splev(time, spl)
+        spl = interpolate.splrep(self.data['time'], self.data['temp'])
+        self.data['temp'] = interpolate.splev(time, spl)
+        self.data['time'] = time
+
+        # interpolate to a longer time grid (30 years)
+        time =  np.arange(366*10) + 1
+        dtime = nc.num2date(time, 'days since 1900-01-01')
+        self.data['yearday'] = np.array([i.timetuple().tm_yday for i in dtime])
+        self.data['salt'] = np.interp(self.data['yearday'], self.data['time'], self.data['salt'])
+        self.data['temp'] = np.interp(self.data['yearday'], self.data['time'], self.data['temp'])
+        self.data['time'] = time
 
     def read_sp_soda(self, lon_lim=[-138.30+360, -136.30+360], lat_lim=[57.50, 58.50], z_lim=[150, 300]):
         """ read SODA data to get process the salinity profiles """
@@ -590,155 +739,192 @@ class BoxSp(object):
         """ load data from netCDF file """
 
         fin = nc.Dataset(self.info['sp_file_name'])
-        for var in ['time', 'yearday', 'lat', 'lon', 'depth', 'salt', 'temp']:
-            self.data_raw[var] = fin.variables[var][:]
+        for var in ['time', 'salt', 'temp']:
+            self.data[var] = fin.variables[var][:]
         fin.close()
 
         return None
 
-    def cal_sp(self, zmin=150, zmax=300):
-        """ calcualte sp from climatology data. """
+    def interp_daily(self):
+        """ interpolate data to daily. """
 
-        self.data['time'] = self.data_raw['time']
-        self.data['yearday'] = self.data_raw['yearday']
-        mskz = (self.data_raw['depth'] >= zmin) & (self.data_raw['depth'] <= zmax)
-        self.data['sp'] = np.nanmean(self.data_raw['salt'][:, mskz], axis=1)
+        time = np.arange(self.data['time'][0], self.data['time'][-1])
+        self.data['salt'] = np.interp(time, self.data['time'], self.data['salt'])
+        self.data['temp'] = np.interp(time, self.data['time'], self.data['temp'])
+        self.data['time'] = time
 
         return None
+
+    def cal_clim(self):
+        """ calculate climatology. """
+
+        dtime = nc.num2date(self.data['time'], 'days since 1900-01-01')
+        self.data['yearday'] = np.array([i.timetuple().tm_yday for i in dtime])
+
+        self.climatology['time'] = np.arange(366) + 1
+        self.climatology['salt'] = []
+        self.climatology['temp'] = []
+
+        for i in range(366):
+            msk = self.data['yearday'] == i + 1
+            self.climatology['salt'].append(self.data['salt'][msk].mean())
+            self.climatology['temp'].append(self.data['temp'][msk].mean())
+        self.climatology['temp'] = np.array(self.climatology['temp'])
+        self.climatology['salt'] = np.array(self.climatology['salt'])
+
+        return None
+
+    def interp(self):
+        """ interpolate data onto given times. """
+
+        self.data['salt'] = np.interp(self.time,
+            self.data['time'], self.data['salt'])
+        self.data['temp'] = np.interp(self.time,
+            self.data['time'], self.data['temp'])
+
+        self.data['time'] = self.time
+
+        return None
+
+    def filter(self, nfilter=5):
+        """ filter Sp and Tp. """
+
+        bfilt = np.ones(nfilter)/float(nfilter)
+        afilt = 1
+        self.data['salt'] = filtfilt(bfilt, afilt, self.data['salt'])
+        self.data['temp'] = filtfilt(bfilt, afilt, self.data['temp'])
 
     # ------------------------- obsolete --------------------------------------------------
+    # def _read_sp_wod(self, lon_lim=[-138.30, -136.30], lat_lim=[57.50, 58.50], depth=500):
+    #     """ read WOD raw file and process the salinity profiles """
 
+    #     from wodpy import wod
 
-    def _read_sp_wod(self, lon_lim=[-138.30, -136.30], lat_lim=[57.50, 58.50], depth=500):
-        """ read WOD raw file and process the salinity profiles """
+    #     # parse lon/lat range
+    #     if 'sp_lon_lim' in self.info.keys():
+    #         lon_lim = self.info['sp_lon_lim']
+    #     else:
+    #         self.info['sp_lon_lim'] = lon_lim
+    #     if 'sp_lat_lim' in self.info.keys():
+    #         lat_lim = self.info['sp_lat_lim']
+    #     else:
+    #         self.info['sp_lat_lim'] = lat_lim
 
-        from wodpy import wod
+    #     zlev = np.arange(depth)
+    #     lat = []
+    #     lon = []
+    #     spr = []
+    #     tpr = []
+    #     time = []
+    #     yearday = []
 
-        # parse lon/lat range
-        if 'sp_lon_lim' in self.info.keys():
-            lon_lim = self.info['sp_lon_lim']
-        else:
-            self.info['sp_lon_lim'] = lon_lim
-        if 'sp_lat_lim' in self.info.keys():
-            lat_lim = self.info['sp_lat_lim']
-        else:
-            self.info['sp_lat_lim'] = lat_lim
+    #     fid = open(self.info['sp_raw_file_name'])
+    #     cts = 0  # counter
+    #     loop = True
+    #     while loop:
+    #         prof = wod.WodProfile(fid)
+    #         lon0, lat0 = prof.longitude(), prof.latitude()
 
-        zlev = np.arange(depth)
-        lat = []
-        lon = []
-        spr = []
-        tpr = []
-        time = []
-        yearday = []
+    #         if (lon0 > lon_lim[0]) & (lon0 < lon_lim[1]) & (lat0 > lat_lim[0]) & (lat0 < lat_lim[1]):
+    #             zpr = prof.z()
+    #             if len(zpr) > 1:
+    #                 salt = prof.s()
+    #                 if not np.all(salt.mask):
+    #                     lat.append(lat0)
+    #                     lon.append(lon0)
+    #                     time.append(nc.date2num(prof.datetime(), 'days since 1900-01-01'))
+    #                     yearday.append(prof.datetime().timetuple().tm_yday)
 
-        fid = open(self.info['sp_raw_file_name'])
-        cts = 0  # counter
-        loop = True
-        while loop:
-            prof = wod.WodProfile(fid)
-            lon0, lat0 = prof.longitude(), prof.latitude()
+    #                     temp = prof.s()
+    #                     zmsk2 = ~salt.mask
+    #                     zpr = zpr[zmsk2]
+    #                     salt = salt[zmsk2]
+    #                     temp = temp[zmsk2]
 
-            if (lon0 > lon_lim[0]) & (lon0 < lon_lim[1]) & (lat0 > lat_lim[0]) & (lat0 < lat_lim[1]):
-                zpr = prof.z()
-                if len(zpr) > 1:
-                    salt = prof.s()
-                    if not np.all(salt.mask):
-                        lat.append(lat0)
-                        lon.append(lon0)
-                        time.append(nc.date2num(prof.datetime(), 'days since 1900-01-01'))
-                        yearday.append(prof.datetime().timetuple().tm_yday)
+    #                     zmin, zmax = zpr[0], zpr[-1]
+    #                     zmsk = (zlev >= zmin) & (zlev <= zmax)
+    #                     spr_i = np.zeros(depth)*np.NaN
+    #                     spr_i[zmsk] = np.interp(zlev[zmsk], zpr, salt)
+    #                     tpr_i = np.zeros(depth)*np.NaN
+    #                     tpr_i[zmsk] = np.interp(zlev[zmsk], zpr, salt)
+    #                     spr.append(spr_i)
+    #                     tpr.append(tpr_i)
 
-                        temp = prof.s()
-                        zmsk2 = ~salt.mask
-                        zpr = zpr[zmsk2]
-                        salt = salt[zmsk2]
-                        temp = temp[zmsk2]
+    #         loop = not prof.is_last_profile_in_file(fid)
+    #         cts += 1
 
-                        zmin, zmax = zpr[0], zpr[-1]
-                        zmsk = (zlev >= zmin) & (zlev <= zmax)
-                        spr_i = np.zeros(depth)*np.NaN
-                        spr_i[zmsk] = np.interp(zlev[zmsk], zpr, salt)
-                        tpr_i = np.zeros(depth)*np.NaN
-                        tpr_i[zmsk] = np.interp(zlev[zmsk], zpr, salt)
-                        spr.append(spr_i)
-                        tpr.append(tpr_i)
+    #     self.data_raw['lat'] = np.array(lat)
+    #     self.data_raw['lon'] = np.array(lon)
+    #     self.data_raw['time'] = np.array(time)
+    #     self.data_raw['yearday'] = np.array(yearday)
+    #     self.data_raw['salt'] = np.array(spr)
+    #     self.data_raw['temp'] = np.array(tpr)
+    #     self.data_raw['depth'] = zlev
 
-            loop = not prof.is_last_profile_in_file(fid)
-            cts += 1
+    #     # save to netCDF file
+    #     fout = nc.Dataset(self.info['sp_file_name'], 'w')
 
-        self.data_raw['lat'] = np.array(lat)
-        self.data_raw['lon'] = np.array(lon)
-        self.data_raw['time'] = np.array(time)
-        self.data_raw['yearday'] = np.array(yearday)
-        self.data_raw['salt'] = np.array(spr)
-        self.data_raw['temp'] = np.array(tpr)
-        self.data_raw['depth'] = zlev
+    #     fout.createDimension('time')
+    #     fout.createDimension('z', depth)
 
-        # save to netCDF file
-        fout = nc.Dataset(self.info['sp_file_name'], 'w')
+    #     for var in ['time', 'yearday', 'lon', 'lat']:
+    #         fout.createVariable(var, 'f8', ('time'))
+    #         fout.variables[var][:] = self.data_raw[var]
 
-        fout.createDimension('time')
-        fout.createDimension('z', depth)
+    #     for var in ['salt', 'temp']:
+    #         fout.createVariable(var, 'f8', ('time', 'z'))
+    #         fout.variables[var][:] = self.data_raw[var]
 
-        for var in ['time', 'yearday', 'lon', 'lat']:
-            fout.createVariable(var, 'f8', ('time'))
-            fout.variables[var][:] = self.data_raw[var]
+    #     fout.createVariable('depth', 'f8', ('z'))
+    #     fout.variables['depth'][:] = self.data_raw['depth']
 
-        for var in ['salt', 'temp']:
-            fout.createVariable(var, 'f8', ('time', 'z'))
-            fout.variables[var][:] = self.data_raw[var]
+    #     fout.close()
 
-        fout.createVariable('depth', 'f8', ('z'))
-        fout.variables['depth'][:] = self.data_raw['depth']
+    #     return None
 
-        fout.close()
+    # def _cal_clim(self):
+    #     """ calclate climatology for a single profile """
 
-        return None
+    #     salt_avg = np.nanmean(self.data_raw['salt'], axis=0)
+    #     temp_avg = np.nanmean(self.data_raw['temp'], axis=0)
 
-    def _cal_clim(self):
-        """ calclate climatology for a single profile """
+    #     # define deep water S and T values
+    #     salt_d = 34.0
+    #     temp_d = 4.3
 
-        salt_avg = np.nanmean(self.data_raw['salt'], axis=0)
-        temp_avg = np.nanmean(self.data_raw['temp'], axis=0)
+    #     # fill up NaNs in data
+    #     salt_avg[-1] = salt_d
+    #     temp_avg[-1] = temp_d
+    #     msk = ~np.isnan(temp_avg)
+    #     temp_avg = np.interp(self.data_raw['depth'],
+    #                          self.data_raw['depth'][msk], temp_avg[msk])
+    #     salt_avg = np.interp(self.data_raw['depth'],
+    #                          self.data_raw['depth'][msk], salt_avg[msk])
 
-        # define deep water S and T values
-        salt_d = 34.0
-        temp_d = 4.3
+    #     # filter
+    #     bfilt = np.ones(20)/20.
+    #     afilt = 1
+    #     temp_avg = filtfilt(bfilt, afilt, temp_avg)
+    #     salt_avg = filtfilt(bfilt, afilt, salt_avg)
 
-        # fill up NaNs in data
-        salt_avg[-1] = salt_d
-        temp_avg[-1] = temp_d
-        msk = ~np.isnan(temp_avg)
-        temp_avg = np.interp(self.data_raw['depth'],
-                             self.data_raw['depth'][msk], temp_avg[msk])
-        salt_avg = np.interp(self.data_raw['depth'],
-                             self.data_raw['depth'][msk], salt_avg[msk])
+    #     # give salinity and temperature some seasonal variability
+    #     self.climatology['time'] = np.array([0., 31., 59., 90., 120., 151.,
+    #         181., 212., 243., 273., 304., 334.]) + 14
+    #     salt_clim_s = np.array([31, 31, 30.5, 30.5, 30.5, 30.5,
+    #         30, 29.5, 29, 30, 31, 31])
+    #     temp_clim_s = np.array([8, 8, 8, 9, 10, 10, 10, 11, 11, 11, 10, 9])
 
-        # filter
-        bfilt = np.ones(20)/20.
-        afilt = 1
-        temp_avg = filtfilt(bfilt, afilt, temp_avg)
-        salt_avg = filtfilt(bfilt, afilt, salt_avg)
+    #     self.climatology['salt'] = np.zeros((len(self.climatology['time']),
+    #                                          len(self.data_raw['depth'])))
+    #     self.climatology['temp'] = np.zeros((len(self.climatology['time']),
+    #                                          len(self.data_raw['depth'])))
+    #     self.climatology['depth'] = self.data_raw['depth']
 
-        # give salinity and temperature some seasonal variability
-        self.climatology['time'] = np.array([0., 31., 59., 90., 120., 151.,
-            181., 212., 243., 273., 304., 334.]) + 14
-        salt_clim_s = np.array([31, 31, 30.5, 30.5, 30.5, 30.5,
-            30, 29.5, 29, 30, 31, 31])
-        temp_clim_s = np.array([8, 8, 8, 9, 10, 10, 10, 11, 11, 11, 10, 9])
+    #     for i in range(len(self.data_raw['depth'])):
+    #         self.climatology['salt'][:, i] = (salt_avg[i] - salt_d)/(salt_avg[0] - salt_d)*(salt_clim_s - salt_d) + salt_d
+    #         self.climatology['temp'][:, i] = (temp_avg[i] - temp_d)/(temp_avg[0] - temp_d)*(temp_clim_s - temp_d) + temp_d
 
-        self.climatology['salt'] = np.zeros((len(self.climatology['time']),
-                                             len(self.data_raw['depth'])))
-        self.climatology['temp'] = np.zeros((len(self.climatology['time']),
-                                             len(self.data_raw['depth'])))
-        self.climatology['depth'] = self.data_raw['depth']
-
-        for i in range(len(self.data_raw['depth'])):
-            self.climatology['salt'][:, i] = (salt_avg[i] - salt_d)/(salt_avg[0] - salt_d)*(salt_clim_s - salt_d) + salt_d
-            self.climatology['temp'][:, i] = (temp_avg[i] - temp_d)/(temp_avg[0] - temp_d)*(temp_clim_s - temp_d) + temp_d
-
-        return None
+    #     return None
 
 # ------------------------- other functionals ---------------------------------------------
 

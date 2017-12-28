@@ -1,0 +1,48 @@
+# ------------------------- model constants -----------------------------------
+[Box]
+# time step [day]
+DT = 0.5
+
+# relaxation timescale [Li et al 1999] [day]
+TR = 5.0
+
+# second to day converter [s day^-1]
+S2D = 86400.
+
+# reference salinity [PSU]
+S0 = 31.5
+
+# initial salinity [non-dimensional]
+SINIT = 1.
+
+# stratification damp [PSU]
+DELTASUI0 = 2.
+DELTASID0 = 0.01
+DELTAS1 = 0.7
+DELTASc0 = 5.0
+
+# box separation depth [m]
+H_SI = 10.
+H_ID = 50.
+
+# C0, C1 [Li et al 1999] [m^3s^-1 (kg m^3)^-1]
+C0 = 2.e0
+# C0 = 1.e0
+C1 = 3.e1
+
+# salinity contraction coefficient beta [PSU^-1]
+BETA = 7.8e-1
+
+# reference density [kg m^-3]
+RHO0 = 1.024e3
+
+# Mixing Velocity [m day^-1]
+OMEGASI0 = 2.e-1
+OMEGAID0 = 1.e-3
+OMEGASI1 = 3.0e1
+OMEGAID1 = 1.e0
+OMEGASI2 = 2.e0
+OMEGAID2 = 1.e0
+
+# river discharge scaling factor
+SCALE_RIVER = 1.e0

@@ -1,5 +1,6 @@
 # Inverse box model
-# 2017/11/10
+# 2016/09/06
+# Add a equation for temperature for the bottom box
 
 def box_inverse(cal_clim=-1, svpth=-1, filterwindow=90):
 
@@ -45,7 +46,7 @@ def box_inverse(cal_clim=-1, svpth=-1, filterwindow=90):
         # This version is created on 2016/08/23 -- see my notes
         # 2016/08/24
         # Change this from a 11-box model into a 12-box model -- see my notes
-
+                
         a[0, 0]   = s[1, 0, i]-s[0, 0, i]
         a[0, 4]   = s[1, 0, i]-s[0, 0, i]
         a[1, 0]   = s[2, 0, i]-s[1, 0, i]

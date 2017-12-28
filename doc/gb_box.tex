@@ -1,16 +1,14 @@
 \documentclass{article}
 
-\usepackage{afterpage}
-\usepackage{float}
 \usepackage{graphicx}
-\usepackage{here}
-\usepackage{natbib}
-
-\usepackage{apalike}
 \usepackage{epstopdf}
-\usepackage{captcont}
-\usepackage{fancyref}
+\usepackage{natbib}
 \usepackage[margin=1.4in]{geometry}
+\usepackage{amsmath}
+
+% \usepackage{apalike}
+% \usepackage{captcont}
+% \usepackage{fancyref}
 
 \title{An Inverse-Forward Model for Salt Budgets in Glacier Bay, Alaska}
 \author{Chuning Wang}
@@ -20,7 +18,7 @@
 \maketitle
 
 \section{Introduction}
-Box model, both forward and inverse, is a simple but efficient way to establish a first order understanding of the oceanic system \citep{}.
+Box model, both forward and inverse, is a simple but efficient way to establish a first order understanding of the oceanic system \citep{guan2008stommel, stommel1961thermohaline}.
 
 \section{Model Setup}
 \label{sec:method}
@@ -39,5 +37,12 @@ Salt budgets:
   \frac{\rm{d}}{\rm{d}t}S=\sum Q_{in}S_{in}+\sum Q_{out}S_{out}+\sum W_{in}S_{in}+\sum W_{out}S_{out}
   \label{eq:sbudget}
 \end{equation}
+
+%----------------------------------------------------------------------------------------
+%	BIBLIOGRAPHY
+%----------------------------------------------------------------------------------------
+
+\bibliographystyle{apalike}
+\bibliography{gb_box}
 
 \end{document}
