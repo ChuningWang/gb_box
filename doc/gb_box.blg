@@ -3,44 +3,44 @@ Capacity: max_strings=100000, hash_size=100000, hash_prime=85009
 The top-level auxiliary file: gb_box.aux
 The style file: apalike.bst
 Database file #1: gb_box.bib
-You've used 2 entries,
+You've used 18 entries,
             1935 wiz_defined-function locations,
-            485 strings with 4024 characters,
-and the built_in function-call counts, 784 in all, are:
-= -- 80
-> -- 20
-< -- 2
-+ -- 6
-- -- 6
-* -- 68
-:= -- 137
-add.period$ -- 6
-call.type$ -- 2
-change.case$ -- 13
-chr.to.int$ -- 2
-cite$ -- 2
-duplicate$ -- 28
-empty$ -- 61
-format.name$ -- 10
-if$ -- 151
-int.to.chr$ -- 1
+            591 strings with 7242 characters,
+and the built_in function-call counts, 7324 in all, are:
+= -- 730
+> -- 283
+< -- 9
++ -- 101
+- -- 94
+* -- 665
+:= -- 1274
+add.period$ -- 54
+call.type$ -- 18
+change.case$ -- 136
+chr.to.int$ -- 17
+cite$ -- 18
+duplicate$ -- 251
+empty$ -- 521
+format.name$ -- 118
+if$ -- 1400
+int.to.chr$ -- 2
 int.to.str$ -- 0
-missing$ -- 2
-newline$ -- 13
-num.names$ -- 6
-pop$ -- 7
+missing$ -- 19
+newline$ -- 93
+num.names$ -- 54
+pop$ -- 99
 preamble$ -- 1
-purify$ -- 13
+purify$ -- 137
 quote$ -- 0
-skip$ -- 23
+skip$ -- 188
 stack$ -- 0
-substring$ -- 74
-swap$ -- 2
+substring$ -- 616
+swap$ -- 18
 text.length$ -- 0
 text.prefix$ -- 0
 top$ -- 0
-type$ -- 12
+type$ -- 106
 warning$ -- 0
-while$ -- 8
+while$ -- 68
 width$ -- 0
-write$ -- 28
+write$ -- 234

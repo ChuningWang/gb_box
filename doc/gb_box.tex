@@ -6,6 +6,8 @@
 \usepackage[margin=1.4in]{geometry}
 \usepackage{amsmath}
 
+\allowdisplaybreaks
+
 % \usepackage{apalike}
 % \usepackage{captcont}
 % \usepackage{fancyref}
@@ -18,25 +20,171 @@
 \maketitle
 
 \section{Introduction}
-Box model, both forward and inverse, is a simple but efficient way to establish a first order understanding of the oceanic system \citep{guan2008stommel, stommel1961thermohaline}.
+Box model is a simple yet efficient way to establish an understanding of the oceanic/atmospheric systems \citep{guan2008stommel, stommel1961thermohaline} on variety of temporal and spatial scales. On large scales, box models are used to estimate the strength and transport of basin scale overturning circulation \citep{stommel1961thermohaline}; on small scales, such models are used to investigate estuarine systems \citep{sun2017box, rogers2017improved, krvavica2016field, ljubenkov2015hydrodynamic, longphuirt2016influence, staehr2017decadal, tomaso2015long, wang1999water}. On geological time scale, \citet{karaca1999box} studied the evolution of the Black Sea's salinity in the last 7500 years using a simple two-box model.\\
+
+For estuarine systems, box models are mainly used to solve water and tracer transport and mixing between boxes. Box model divides the the water body of interest into several boxes and assume complete mixing in each box at each time step. Transport and mixing between boxes are parameterized based on the state of each box. The parameterizations usually follow the laws of physics, with some empirical adjustments to compensate the box simplification.\\
+
+The development of such models incorporates various levels of sophistication - from a simple tidal prism model \citep{valle2010contemporary} to models with multiple layers with up to as many as 59 boxes \citep{walker1999coupled}. The simplest form of box model is the segmented tidal prism model \citep{dyer1973simple}. It divides the system into several segments along channel. In each tidal cycle, a fixed volume of water known as the prism, the difference of volume between low tide and high tide, is added to each segment during flood tide. The prism is fully mixed with the rest of the segment before ebb tide removes the same volume, thus complete the tidal exchange. Since tidal prism assumes vertical homogeneity, it only works well in small estuaries with strong mixing. For larger estuaries with strong stratification, e.g., the Fraser River estuary, a box model with multiple layer setup is required to resolve the structure of vertical exchange flow.\\
+
+In this paper we build a three layer, five segments box model for the water of Glacier Bay National Park, Alaska to study the the exchange flow and mixing processes. In section~\ref{sec:method} we show the model setup; in section~\ref{sec:results} we show some preliminary results.\\
 
 \section{Model Setup}
 \label{sec:method}
-\subsection{Governing Equations}
-The circulation of a Glacier Bay is regulated by several external forcing and constrains: freshwater input, vertical density distribution, wind, tide, and topographic constrains. Topographic constrains include (1) a relatively shallow sill towards the fjord entrance and (2) a relatively narrow channel compared to the length of the fjord. The first constrain conserves the total volume of the fjord;
+\subsection{Glacier Bay}
+\label{sec:glacierbay}
+The Glacier Bay National Park (Fig~\ref{fig:map}), located west of Juneau in southeast Alaska (58$^{\circ}$-59$^{\circ}$N, 135$^{\circ}$-138$^{\circ}$W), is a Y-shaped fjord over 100 km long and 20 km wide. The deepest site is found near the center of the fjord, with a depth of of approximately 425 m, while the mouth of fjord is much shallower (30-50 m). The fjord, and lowlands surrounding it, were covered by glacial ice until approximately 250 years ago \citep{cooper1923recent}. Since then, the retreat of glacier has greatly altered the terrestrial \citep{chapin1994mechanisms} as well as the aquatic ecosystem \citep{milner2000colonization}.\\
 
+\begin{figure}
+\centerline{\includegraphics[width=6in]{../figs/GB_lr_map.png}}
+\caption{Location map of Glacier Bay and the surrounding waters. Red triangles are CTD sampling stations by National Park Service. The red dashed line is the main channel from the west arm to the Pacific Ocean. Black dashed lines are the boundary of box model segmentation.}
+\label{fig:map}
+\end{figure}
 
-Volume conservation:
+The Glacier Bay is historically reported as a ecologically productive region \citep{cooper1923recent, cooper1923recentb}, however, the reason for its high productivity is unclear due to insufficient investigation. In recent years, melting of glacier ice has brought large amount of cold, fresh water along with terrestrial sediment into the Glacier Bay and altered the system. To get a better understanding of the physical oceanography, regular collection of physical oceanographic parameters has taken place in Glacier Bay by the National Park Service since 1993. The goal is to compile a dataset of oceanographic conditions that can be used to better understand seasonal and interannual changes in the local and regional oceanographic dynamics, as well as spatial and temporal variation in the abundance patterns of marine organisms including phytoplankton, zooplankton and higher trophic levels. Parameters in this dataset include temperature, salinity, photosynthetically active radiation (PAR), optical backscatterance (OBS; turbidity), chlorophyll fluorescence, and dissolved oxygen.\\
+
+So far over 20 years of regular CTD profiles have been collected and archived in the National Park Service data base. A preliminary summary of temperature and salinity is shown in Fig~\ref{fig:ts_clim}. During winter time (Jan) the fjord is partially covered with ice, and it is well mixed throughout the water column, with a uniform temperature ranging from 4 to 6~$^{\circ}C$ and salinity around 31. From May to September, as temperature rises, fresh water input from glacier ice and snow start to increase and dilute the surface water. In July strong stratification is formed, with a mixed layer depth around 10 m. Surface temperature also increases to 8 to 12~$^{\circ}C$ due to longer daytime and increased insolation. From October to November, temperature decreases quickly to winter level due to surface heat loss, and in November a surface layer of temperature inversion is even formed. Interannual variability is only observed during summer time, which is possibly biased because there are simply more measurements in summer.\\
+
+\begin{figure}
+\centerline{\includegraphics[width=6in]{../figs/clim_all2.png}}
+\caption{Climatological cross-sections of temperature and salinity based on CTD measurements from Icy Strait to Tarr Inlet for January (a, c) and July (b, d)}
+\label{fig:ts_clim}
+\end{figure}
+
+Aside of CTD measurements taken by National Park Service, month-long ADCP measurements were taken in the Glacier Bay and surrounding water by USGS in year 2008 and 2010. Measurements from one station (SEA0847, location shown in Fig~\ref{fig:map}) is shown in Fig~\ref{fig:adcp}. The ADCP station is located in the lower bay where the current is the strongest. To fully understand current and volume transport, the ADCP measurements are decomposed into three components:
+
 \begin{equation}
-  0=F_i+\sum Q_{in}+\sum Q_{out}+\sum W_{in}+\sum W_{out}
+U(t, z) = U_{exchange}(z) + U_{tide}(t) + U_{residual}(t, z)
+\label{eq:u}
+\end{equation}
+
+where
+
+\begin{equation}
+U_{exchange}(z) = \langle U(t, z) \rangle_t
+\label{eq:uex}
+\end{equation}
+
+is the temporal average of $U(t, z)$, representing the structure of mean exchange flow. Here we ignore the temporal variability of exchange flow for a month-long survey. At this station the along channel direction is close to North-South. Along channel exchange flow is strongest and near surface, with a negative sign meaning an average outflow; in deep water the transport switch direction and complete the exchange. In cross channel direction the flow is strongest near the bottom and decreases towards surface, potentially constrained by bottom topography.\\
+
+The barotropic tidal current
+
+\begin{equation}
+U_{tide}(t) = \langle U(t, z)-U_{exchange}(z) \rangle_z
+\label{eq:utide}
+\end{equation}
+
+is the main component of velocity. Tidal current is mostly along channel (not shown), $M_2$ is the major tidal constituent, which is modulated by the spring-neap cycle. Amplitude of tidal flow varies from 1~m$\cdot$s$^{-1}$ (neap) to 2.8~m$\cdot$s$^{-1}$ (spring).\\
+
+The residual flow $U_{res}$ is a combination of mode 1 internal tide and temporal variability of exchange flow. Amplitude of internal tide is much smaller than that of barotropic tide, and the spring-neap modulation is in opposite phase.\\
+
+\begin{figure}
+\centerline{\includegraphics[width=6in]{../figs/adcp_SEA0847.png}}
+\caption{ADCP measurements from Aug $7_{th}$ to Sept $13_{th}$ of 2008. The velocity vector is decomposed into three components following Eq~\ref{eq:u}.}
+\label{fig:adcp}
+\end{figure}
+
+The data presented above suggest that Glacier Bay is a typical high latitude estuarine system, which is characterized by a deep mixed layer during winter and strong stratification during summer. It is regulated by daily insolation and fresh water discharge, both of which have a strong seasonal cycle. Thus, the ecosystem should also show strong seasonal variability as well - a first guess would be a strong late spring-early summer phytoplankton bloom when the stratification is formed, which persists through summer and vanishes in late fall. Chlorophyll fluorescence is a good indicator of phytoplankton biomass, thus the strong spring bloom should be reflected in fluorescence measurements, which will be presented in future works. The growth of phytoplankton favors higher trophic levels, thus an increase in secondary (and higher level) production is predicted to follow the spring bloom. However, this cannot be tested with the dataset in hand.\\
+
+\subsection{Box Setup}
+The circulation of Glacier Bay is regulated by several external forcing and constrains: freshwater input, vertical density distribution, wind, tide, and topographic constrains. Topographic constrains include (1) a relatively shallow sill towards the fjord entrance and (2) a relatively narrow channel in the lower bay compared to the length of the fjord. The first constrain limits the exchange between Glacier Bay and Icy Strait; the second constrain enhances tidal flow in the lower bay, which as a result enhances vertical mixing greatly.\\
+
+General circulation is driven by freshwater runoff. In summer, large volume of runoff forms a layer of brackish plume and drives a surface outflow; to compensate the surface outflow, a return flow is formed below the outflow at the intermediate layer. In winter, due to lack of freshwater runoff, the exchange flow is much weaker. Since the outflow water has much less salt content, the overall net salt flux through a cross channel section is negative. The exchange of salt is enhanced by the process of tidal prism. The depth of return flow is limited by the sill to a depth of approximately 55~m. Below the intermediate layer is a pool of salty water, which is steady and has little exchange with the upper layers.\\
+
+Horizontally, near the surface, salinity decreases from the sill to the glacier terminuses. The system can be divided into four main regions (Fig~\ref{fig:map})- west arm, east arm, mid bay and lower bay. In summer, the plume extends all the way to the mid bay, and terminates in the lower bay due to enhanced vertical mixing; surface salinity is significantly lower in both west and east arms. Below the surface, the deep water show very little horizontal variability. In winter, the whole water body is very well mixed both vertically and horizontally.\\
+
+Based on the above description, the Glacier Bay system can be represented by a three-layer, five-segment box model setup. Vertically the system is divided into three layers: the upper layer, denoted by subscript $u$; the intermediate layer, denoted by subscript $i$; and the deep layer, denoted by subscript $d$. For the surface and intermediate layers, each one is further divided into five segments, as shown in Fig~\ref{fig:map}. The main bay includes four segments, which are denoted by index 0, 1, 2 and 3; to study how Glacier Bay interacts with the Atlantic shelf water, we add another segment (4) of Icy Strait and Cross Sound to connect Glacier Bay with the open ocean. For the deep layer, since measurements show that the deep water of Glacier Bay is horizontally homogenous throughout a year, it is not further divided into segments as the surface layers.\\
+
+Hence the model contains a total number of 11 boxes. A schematic diagram of the model setup is shown in Fig~\ref{fig:box}. A single-headed arrow denotes volume transport from one box to another, while a double-headed arrow denotes mixing between two boxes. The state of each box is regulated by two equations:
+
+\begin{equation}
+  0=F+\sum Q_{in}-\sum Q_{out}
   \label{eq:vconserv}
 \end{equation}
 
-Salt budgets:
 \begin{equation}
   \frac{\rm{d}}{\rm{d}t}S=\sum Q_{in}S_{in}+\sum Q_{out}S_{out}+\sum W_{in}S_{in}+\sum W_{out}S_{out}
   \label{eq:sbudget}
 \end{equation}
+
+Eq~\ref{eq:vconserv} conserves the volume of each box, where $F$ is the incoming freshwater runoff, $Q_in$ and $Q_out$ are incoming and outgoing volume fluxes from and to neighboring boxes. Eq~\ref{eq:sbudget} is the equation of salt budgets, where $S_in$ and $S_out$ are salinities corresponding to $Q_in$ and $Q_out$, and $W_in$ and $W_out$ are mixing volume exchanges between vertical layers. Based on the box setup of Fig~\ref{fig:box}, the governing equations for this system is written as:
+
+\begin{equation}
+\begin{aligned}
+0 &= F_0 + Q_{0e} - Q_{02u} \\
+0 &= -Q_{0e} + Q_{20i} \\
+0 &= F_1 + Q_{1e} - Q_{12u} \\
+0 &= -Q_{1e} + Q_{21i} \\
+0 &= F_2 + Q_{2e} + Q_{02u} + Q_{12u} - Q_{23u} \\
+0 &= -Q_{2e} - Q_{20i} - Q_{21i} + Q_{32i} \\
+0 &= F_3 + Q_{3e} + Q_{23u} - Q_{34u} \\
+0 &= -Q_{3e} - Q_{32i} + Q_{43i} \\
+0 &= F_4 + Q_{4e} + Q_{34u} - Q_{4pu} \\
+0 &= -Q_{4e} - Q_{43i} + Q_{p4i}
+\end{aligned}
+\label{eq:vconserv2}
+\end{equation}
+
+and
+
+\begin{equation}
+\begin{aligned}
+V_{0u}\frac{\mathbf{d}}{\mathbf{d}t}S_{0u} &= Q_{0e}S_{0i} - Q_{02u}S_{0u} + W_{0ui}(S_{0i}-S_{0u}) \\
+V_{0i}\frac{\mathbf{d}}{\mathbf{d}t}S_{0i} &= -Q_{0e}S_{0i} + Q_{20i}S_{2i} - W_{0ui}(S_{0i}-S_{0u}) + W_{0id}(S_{d}-S_{0i}) \\
+V_{1u}\frac{\mathbf{d}}{\mathbf{d}t}S_{1u} &= Q_{1e}S_{1i} - Q_{12u}S_{1u} + W_{1ui}(S_{1i}-S_{1u}) \\
+V_{1i}\frac{\mathbf{d}}{\mathbf{d}t}S_{1i} &= -Q_{1e}S_{1i} + Q_{21i}S_{2i} - W_{1ui}(S_{1i}-S_{1u}) + W_{1id}(S_{d}-S_{1i}) \\
+V_{2u}\frac{\mathbf{d}}{\mathbf{d}t}S_{2u} &= Q_{2e}S_{2i} + Q_{02u}S_{0u} + Q_{12u}S_{1u} -  Q_{23u}S_{2u} + W_{2ui}(S_{2i}-S_{2u}) \\
+V_{2i}\frac{\mathbf{d}}{\mathbf{d}t}S_{2u} &= -Q_{2e}S_{2i} - Q_{20i}S_{2i} - Q_{21i}S_{2i} + Q_{32i}S_{3i} - W_{2ui}(S_{2i}-S_{2u}) + W_{2id}(S_{d}-S_{2i}) \\
+V_{3u}\frac{\mathbf{d}}{\mathbf{d}t}S_{3u} &= Q_{3e}S_{3i} + Q_{23u}S_{2u} - Q_{34u}S_{3u} + W_{3ui}(S_{3i}-S_{3u}) \\
+V_{3i}\frac{\mathbf{d}}{\mathbf{d}t}S_{3i} &= -Q_{3e}S_{3i} - Q_{32i}S_{3i} + Q_{43i}S_{4i} - W_{3ui}(S_{3i}-S_{3u}) + W_{3id}(S_{d}-S_{3i}) \\
+V_{4u}\frac{\mathbf{d}}{\mathbf{d}t}S_{4u} &= Q_{4e}S_{4i} + Q_{34u}S_{3u} - Q_{4pu}S_{4u} + W_{4ui}(S_{4i}-S_{4u}) \\
+V_{4i}\frac{\mathbf{d}}{\mathbf{d}t}S_{4i} &= -Q_{4e}S_{4i} - Q_{43i}S_{4i} + Q_{p4i}S_{p} - W_{4ui}(S_{4i}-S_{4u}) + W_{4id}(S_{d}-S_{4i}) \\
+V_{d}\frac{\mathbf{d}}{\mathbf{d}t}S_{d} &= -W_{0id}(S_{d}-S_{0i}) - W_{1id}(S_{d}-S_{1i}) - W_{2id}(S_{d}-S_{2i})
+\end{aligned}
+\label{eq:sbudget2}
+\end{equation}
+
+The subscript $e$ denotes entrainment from intermediate layer to upper layer. Note that there is no volume conservation equation for the deep box, as the deep box only exchanges salt with intermediate layer through mixing. \\
+
+\begin{figure}
+\centerline{\includegraphics[width=6in]{../figs/schem.png}}
+\caption{A schematic diagram of box model setup.}
+\label{fig:box}
+\end{figure}
+
+\subsubsection{Volume Transport}
+The density-driven estuarine flow, $Q_{02u}$, $Q_{12u}$ and $Q_{23u}$ are estimated using a parametrization modified from \citet{stommel1961thermohaline}. If the densities of two water masses are $\rho_1$ and $\rho_2$, the gravitational flow from the high to low density end is
+
+\begin{equation}
+Q = c(\rho_1-\rho_2) = c\beta\rho_0(S_1-S_2)
+\label{eq:q}
+\end{equation}
+
+where $c$ is a constant of proportionality, $\beta$ the saline contraction coefficient, $\rho_0$ a reference density. Since in estuarine systems, density is mainly determined by salinity, here we use $\rho=\beta\rho_0S$ to approximate density. \\
+
+This parameterization works well for most density driven systems. However, there is another complication for estuaries with large freshwater discharge. When the surface water is diluted by a freshet, the mixing between surface and intermediate water is prohibited, as a result the fresher runoff is advected out of the system much faster and the total volume transport is actually lower. To suppress volume exchange when stratification is too strong, the volume transport $Q$ is scaled with a damping factor
+
+\begin{equation}
+c_d = \min(\frac{\Delta S_{damp}}{S_u-S_i}, 1)
+\label{eq:damp}
+\end{equation}
+
+where $\Delta S_{damp}$ is the critical salinity of damping effect. Another possible correction for $Q$ is the spring-neap tidal cycle, which is estimated with another scaling factor
+
+\begin{equation}
+c_{sn} = 1+c_{sn0}\sin\frac{2\pi t}{T/24}
+\label{eq:sn}
+\end{equation}
+
+where $c_{sn0}$ is the relative amplitude of spring-neap tide, ranging from 0 to 1, $T=1~yr$ is the period of 24 spring-neap tidal cycles. Adding all the corrections together, the final expression of volume transport is
+
+\begin{equation}
+Q = c_{d}c_{sn}c\beta\rho_0(S_1-S_2)
+\label{eq:q2}
+\end{equation}
+
+
+\section{Results}
+\label{sec:results}
 
 %----------------------------------------------------------------------------------------
 %	BIBLIOGRAPHY

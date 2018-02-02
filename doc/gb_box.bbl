@@ -1,14 +1,111 @@
 \begin{thebibliography}{}
 
+\bibitem[Chapin et~al., 1994]{chapin1994mechanisms}
+Chapin, F.~S., Walker, L.~R., Fastie, C.~L., and Sharman, L.~C. (1994).
+\newblock {Mechanisms of primary succession following deglaciation at Glacier
+  Bay, Alaska}.
+\newblock {\em Ecological Monographs}, 64(2):149--175.
+
+\bibitem[Cooper, 1923a]{cooper1923recent}
+Cooper, W.~S. (1923a).
+\newblock {The recent ecological history of Glacier Bay, Alaska: the
+  interglacial forests of Glacier Bay}.
+\newblock {\em Ecology}, 4(2):93--128.
+
+\bibitem[Cooper, 1923b]{cooper1923recentb}
+Cooper, W.~S. (1923b).
+\newblock {The recent ecological history of Glacier Bay, Alaska: the present
+  vegetation cycle}.
+\newblock {\em Ecology}, 4(3):223--246.
+
+\bibitem[Dyer and Taylor, 1973]{dyer1973simple}
+Dyer, K. and Taylor, P. (1973).
+\newblock A simple, segmented prism model of tidal mixing in well-mixed
+  estuaries.
+\newblock {\em Estuarine and Coastal Marine Science}, 1(4):411--418.
+
 \bibitem[Guan and Huang, 2008]{guan2008stommel}
 Guan, Y.~P. and Huang, R.~X. (2008).
-\newblock Stommelâ€™s box model of thermohaline circulation revisitedâ€”the
-  role of mechanical energy supporting mixing and the wind-driven gyration.
+\newblock {Stommel's box model of thermohaline circulation revisited: €”The
+  role of mechanical energy supporting mixing and the wind-driven gyration}.
 \newblock {\em Journal of Physical Oceanography}, 38(4):909--917.
+
+\bibitem[Karaca et~al., 1999]{karaca1999box}
+Karaca, M., Wirth, A., and Ghil, M. (1999).
+\newblock A box model for the paleoceanography of the black sea.
+\newblock {\em Geophysical Research Letters}, 26(4):497--500.
+
+\bibitem[Krvavica et~al., 2016]{krvavica2016field}
+Krvavica, N., Trava{\v{s}}, V., and O{\v{z}}ani{\'c}, N. (2016).
+\newblock A field study of interfacial friction and entrainment in a microtidal
+  salt-wedge estuary.
+\newblock {\em Environmental fluid mechanics}, 16(6):1223--1246.
+
+\bibitem[Ljubenkov, 2015]{ljubenkov2015hydrodynamic}
+Ljubenkov, I. (2015).
+\newblock {Hydrodynamic modeling of stratified estuary: case study of the Jadro
+  River (Croatia)}.
+\newblock {\em Journal of Hydrology and Hydromechanics}, 63(1):29--37.
+
+\bibitem[Longphuirt et~al., 2016]{longphuirt2016influence}
+Longphuirt, S.~N., O?Boyle, S., Wilkes, R., Dabrowski, T., and Stengel, D.~B.
+  (2016).
+\newblock {Influence of hydrological regime in determining the response of
+  macroalgal blooms to nutrient loading in two Irish estuaries}.
+\newblock {\em Estuaries and coasts}, 39(2):478--494.
+
+\bibitem[Milner et~al., 2000]{milner2000colonization}
+Milner, A.~M., Knudsen, E.~E., Soiseth, C., Robertson, A.~L., Schell, D.,
+  Phillips, I.~T., and Magnusson, K. (2000).
+\newblock {Colonization and development of stream communities across a 200-year
+  gradient in Glacier Bay National Park, Alaska, USA}.
+\newblock {\em Canadian Journal of Fisheries and Aquatic Sciences},
+  57(11):2319--2335.
+
+\bibitem[Rogers et~al., 2017]{rogers2017improved}
+Rogers, J., Russell, M., and Harwell, M. (2017).
+\newblock {Improved Method for Calibration of Exchange Flows for a Physical
+  Transport Box Model of Tampa Bay, FL, USA}.
+\newblock {\em Journal of Coastal Research}.
+
+\bibitem[Staehr et~al., 2017]{staehr2017decadal}
+Staehr, P.~A., Testa, J., and Carstensen, J. (2017).
+\newblock Decadal changes in water quality and net productivity of a shallow
+  danish estuary following significant nutrient reductions.
+\newblock {\em Estuaries and Coasts}, 40(1):63--79.
 
 \bibitem[Stommel, 1961]{stommel1961thermohaline}
 Stommel, H. (1961).
 \newblock Thermohaline convection with two stable regimes of flow.
 \newblock {\em Tellus}, 13(2):224--230.
+
+\bibitem[Sun et~al., 2017]{sun2017box}
+Sun, Q., Whitney, M.~M., Bryan, F.~O., and Tseng, Y.-h. (2017).
+\newblock {A box model for representing estuarine physical processes in Earth
+  system models}.
+\newblock {\em Ocean Modelling}, 112:139--153.
+
+\bibitem[Tomaso and Najjar, 2015]{tomaso2015long}
+Tomaso, D.~J. and Najjar, R.~G. (2015).
+\newblock Long-term variations in the dissolved oxygen budget of an urbanized
+  tidal river: The upper delaware estuary.
+\newblock {\em Journal of Geophysical Research: Biogeosciences},
+  120(6):1027--1045.
+
+\bibitem[Valle-Levinson, 2010]{valle2010contemporary}
+Valle-Levinson, A. (2010).
+\newblock {\em Contemporary issues in estuarine physics}.
+\newblock Cambridge University Press.
+
+\bibitem[Walker, 1999]{walker1999coupled}
+Walker, S. (1999).
+\newblock {Coupled hydrodynamic and transport models of Port Phillip Bay, a
+  semi-enclosed bay in south-eastern Australia}.
+\newblock {\em Marine and Freshwater Research}, 50(6):469--481.
+
+\bibitem[Wang et~al., 1999]{wang1999water}
+Wang, P., Martin, J., and Morrison, G. (1999).
+\newblock Water quality and eutrophication in tampa bay, florida.
+\newblock {\em Estuarine, Coastal and Shelf Science}, 49(1):1--20.
 
 \end{thebibliography}
